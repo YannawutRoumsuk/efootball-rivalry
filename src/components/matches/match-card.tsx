@@ -1,5 +1,7 @@
 import { CalendarDays, Upload } from "lucide-react";
 import Link from "next/link";
+import { pairStyle } from "@/components/player/seat-scope";
+import { pairFor, type Roster } from "@/lib/domain/league";
 import { toPerspective } from "@/lib/domain/match";
 import type { Match, PlayerKey, PlayerPair } from "@/lib/domain/types";
 import { formatMatchDate } from "@/lib/format";
@@ -27,7 +29,7 @@ function SideLine({ pair, k, goals, label, team, won, align }: {
         {goals}
       </span>
       <div className="min-w-0">
-        <p className={cn("truncate text-sm font-semibold", won && (k === "a" ? "text-player-a" : "text-player-b"))}>
+        <p className={cn("truncate text-sm font-semibold", k === "a" ? "text-player-a" : "text-player-b", !won && "opacity-80")}>
           {pair[k].display_name}
         </p>
         {sub && <p className="truncate text-xs text-muted-foreground">{sub}</p>}
@@ -36,14 +38,17 @@ function SideLine({ pair, k, goals, label, team, won, align }: {
   );
 }
 
-export function MatchCard({ match, pair }: { match: Match; pair: PlayerPair }) {
+/** One match, players in seat order and in their own colours. */
+export function MatchCard({ match, roster }: { match: Match; roster: Roster }) {
+  const pair = pairFor(roster, match.sides[0].player_id, match.sides[1].player_id);
   const pm = toPerspective(match, pair);
-  const uploader = match.created_by === pair.a.id ? pair.a.display_name : pair.b.display_name;
+  const uploader = roster.find((p) => p.id === match.created_by)?.display_name ?? "—";
   const date = formatMatchDate(match.played_at);
 
   return (
     <Link
       href={`/matches/${match.id}`}
+      style={pairStyle(pair.seats[0], pair.seats[1])}
       className={cn(
         "panel group block p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         match.status === "void" && "opacity-55",

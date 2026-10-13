@@ -6,7 +6,7 @@ import { asUser, requireRivalry, requireUuid } from "@/lib/server/context";
 /** Corrects a saved match. The RPC records before/after data in the audit log. */
 export const PATCH = handle(async (request: Request, context: RouteContext<"/api/matches/[id]">) => {
   const id = requireUuid((await context.params).id);
-  const { userId } = await requireRivalry({ needPair: true });
+  const { userId } = await requireRivalry({ needPlayers: true });
   const input = await parseJson(request, updateMatchSchema);
 
   await asUser(

@@ -19,7 +19,7 @@ const DB_ERRORS: Record<string, { status: number; message: string }> = {
   ALREADY_IN_RIVALRY: { status: 409, message: "You are already in a rivalry room." },
   NOT_IN_RIVALRY: { status: 409, message: "Create or join a rivalry room first." },
   RIVALRY_FULL: { status: 409, message: "This rivalry room already has two players." },
-  RIVALRY_INCOMPLETE: { status: 409, message: "Your friend needs to join the room before matches can be saved." },
+  RIVALRY_INCOMPLETE: { status: 409, message: "At least two players are needed before matches can be saved." },
   RIVALRY_HAS_MATCHES: { status: 409, message: "You can't leave a rivalry that already has matches." },
   INVITE_INVALID: { status: 404, message: "That invite code is not valid." },
   INVITE_USED: { status: 409, message: "That invite code has already been used." },

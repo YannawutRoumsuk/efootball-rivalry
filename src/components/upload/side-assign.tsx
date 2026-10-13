@@ -1,80 +1,121 @@
 "use client";
 
 import { ArrowLeftRight } from "lucide-react";
-import type { LeftOwner } from "@/lib/client/draft";
-import type { PlayerKey, PlayerPair } from "@/lib/domain/types";
+import { seatColor } from "@/components/player/seat-scope";
+import type { RosterPlayer } from "@/lib/domain/league";
 import type { DraftSide } from "@/lib/domain/validation";
 import { cn } from "@/lib/utils";
 
 interface SideAssignProps {
   left: DraftSide;
   right: DraftSide;
-  pair: PlayerPair;
-  me: PlayerKey;
-  value: LeftOwner | null;
-  onChange: (owner: LeftOwner) => void;
+  roster: readonly RosterPlayer[];
+  meId: string;
+  leftPlayer: string | null;
+  rightPlayer: string | null;
+  onChange: (next: { leftPlayer: string | null; rightPlayer: string | null }) => void;
 }
 
-/** "Who was playing on the left side?" — the uploader must choose explicitly. */
-export function SideAssign({ left, right, pair, me, value, onChange }: SideAssignProps) {
-  const friend: PlayerKey = me === "a" ? "b" : "a";
-  const options: Array<{ owner: LeftOwner; key: PlayerKey; title: string }> = [
-    { owner: "me", key: me, title: "Me" },
-    { owner: "friend", key: friend, title: "My friend" },
-  ];
-  const leftKey = value ? (value === "me" ? me : friend) : null;
-  const rightKey = leftKey ? (leftKey === "a" ? "b" : "a") : null;
-  const tone = (k: PlayerKey | null) => (k === "a" ? "text-player-a" : k === "b" ? "text-player-b" : "text-foreground");
+function PlayerButtons({
+  roster,
+  meId,
+  value,
+  disabledId,
+  onPick,
+  label,
+}: {
+  roster: readonly RosterPlayer[];
+  meId: string;
+  value: string | null;
+  disabledId: string | null;
+  onPick: (id: string) => void;
+  label: string;
+}) {
+  return (
+    <div role="radiogroup" aria-label={label} className={cn("grid gap-2", roster.length >= 3 ? "grid-cols-3" : "grid-cols-2")}>
+      {roster.map((p) => {
+        const selected = value === p.id;
+        const disabled = disabledId === p.id;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={disabled}
+            onClick={() => onPick(p.id)}
+            style={selected ? { borderColor: seatColor(p.seat), background: `color-mix(in oklch, ${seatColor(p.seat)} 15%, transparent)` } : undefined}
+            className={cn(
+              "flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-2xl border-2 px-2 py-2 transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
+              !selected && "border-border hover:border-foreground/30",
+              disabled && "opacity-30",
+            )}
+          >
+            <span className="max-w-full truncate font-display text-base font-bold" style={{ color: seatColor(p.seat) }}>
+              {p.display_name}
+            </span>
+            {p.id === meId && <span className="text-[0.65rem] text-muted-foreground uppercase">You</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** "Who played on each side?" — the uploader must choose; names on screen are never trusted. */
+export function SideAssign({ left, right, roster, meId, leftPlayer, rightPlayer, onChange }: SideAssignProps) {
+  const byId = (id: string | null) => roster.find((p) => p.id === id) ?? null;
+  const lp = byId(leftPlayer);
+  const rp = byId(rightPlayer);
+
+  const pickLeft = (id: string) => {
+    const others = roster.filter((p) => p.id !== id);
+    // With two players the other side is obvious; with three it stays the user's choice.
+    const right = others.length === 1 ? others[0].id : rightPlayer === id ? null : rightPlayer;
+    onChange({ leftPlayer: id, rightPlayer: right });
+  };
+  const pickRight = (id: string) => onChange({ leftPlayer, rightPlayer: id });
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border bg-surface-2/60 px-4 py-5 text-center">
-        <div className="min-w-0">
-          <p className="eyebrow">Left</p>
-          <p className="truncate text-sm text-muted-foreground">{left.onscreen_label ?? "—"}</p>
-          <p className={cn("font-display text-6xl font-bold tabular", tone(leftKey))}>{left.goals ?? "?"}</p>
-          {leftKey && <p className={cn("truncate text-sm font-semibold", tone(leftKey))}>{pair[leftKey].display_name}</p>}
-        </div>
-        <ArrowLeftRight className="size-5 text-muted-foreground" aria-hidden />
-        <div className="min-w-0">
-          <p className="eyebrow">Right</p>
-          <p className="truncate text-sm text-muted-foreground">{right.onscreen_label ?? "—"}</p>
-          <p className={cn("font-display text-6xl font-bold tabular", tone(rightKey))}>{right.goals ?? "?"}</p>
-          {rightKey && <p className={cn("truncate text-sm font-semibold", tone(rightKey))}>{pair[rightKey].display_name}</p>}
-        </div>
+        {[
+          { label: "Left", side: left, p: lp },
+          null,
+          { label: "Right", side: right, p: rp },
+        ].map((col, i) =>
+          col === null ? (
+            <ArrowLeftRight key="mid" className="size-5 text-muted-foreground" aria-hidden />
+          ) : (
+            <div key={col.label} className="min-w-0">
+              <p className="eyebrow">{col.label}</p>
+              <p className="truncate text-sm text-muted-foreground">{col.side.onscreen_label ?? "—"}</p>
+              <p className="font-display text-6xl font-bold tabular" style={col.p ? { color: seatColor(col.p.seat) } : undefined}>
+                {col.side.goals ?? "?"}
+              </p>
+              <p className="truncate text-sm font-semibold" style={col.p ? { color: seatColor(col.p.seat) } : undefined}>
+                {col.p?.display_name ?? (i === 0 ? "Who?" : "Who?")}
+              </p>
+            </div>
+          ),
+        )}
       </div>
 
-      <fieldset className="space-y-3">
-        <legend className="mb-3 font-display text-lg font-semibold">Who was playing on the left side?</legend>
-        <div className="grid grid-cols-2 gap-3" role="radiogroup">
-          {options.map((o) => {
-            const selected = value === o.owner;
-            return (
-              <button
-                key={o.owner}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => onChange(o.owner)}
-                className={cn(
-                  "flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border-2 px-3 py-3 transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-[0.98]",
-                  selected
-                    ? o.key === "a"
-                      ? "border-player-a bg-player-a/15"
-                      : "border-player-b bg-player-b/15"
-                    : "border-border hover:border-foreground/30",
-                )}
-              >
-                <span className="font-display text-lg font-bold">{o.title}</span>
-                <span className={cn("truncate text-sm", tone(o.key))}>{pair[o.key].display_name}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          On-screen names and teams change between matches, so the result is linked to real players only by this choice.
-        </p>
+      <fieldset className="space-y-2">
+        <legend className="mb-2 font-display text-lg font-semibold">Who played on the LEFT side?</legend>
+        <PlayerButtons roster={roster} meId={meId} value={leftPlayer} disabledId={null} onPick={pickLeft} label="Left player" />
       </fieldset>
+
+      {roster.length > 2 && (
+        <fieldset className="space-y-2">
+          <legend className="mb-2 font-display text-lg font-semibold">…and on the RIGHT side?</legend>
+          <PlayerButtons roster={roster} meId={meId} value={rightPlayer} disabledId={leftPlayer} onPick={pickRight} label="Right player" />
+        </fieldset>
+      )}
+
+      <p className="text-xs text-muted-foreground">
+        On-screen names and teams change between matches, so the result is linked to real players only by this choice.
+      </p>
     </div>
   );
 }

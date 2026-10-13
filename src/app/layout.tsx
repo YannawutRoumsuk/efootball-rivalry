@@ -21,7 +21,7 @@ const body = IBM_Plex_Sans_Thai({
 
 export const metadata: Metadata = {
   title: { default: "Rivalry Tracker", template: "%s · Rivalry Tracker" },
-  description: "Head-to-head eFootball stats for two friends — upload a full-time screenshot, AI reads it, the rivalry updates.",
+  description: "Head-to-head eFootball league for friends — upload a full-time screenshot, AI reads it, the table updates.",
   applicationName: "Rivalry Tracker",
   appleWebApp: { capable: true, title: "Rivalry", statusBarStyle: "black-translucent" },
   icons: {

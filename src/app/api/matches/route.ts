@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api/envelope";
 import { handle, ok, parseJson } from "@/lib/api/server";
+import { matchesBetween, pairFor } from "@/lib/domain/league";
 import { toPerspectives } from "@/lib/domain/match";
 import { detectNewRecords, type NewRecord } from "@/lib/domain/records";
 import { createMatchSchema, playedOnToTimestamp } from "@/lib/domain/validation";
@@ -13,11 +14,11 @@ import { findDuplicates, loadUploadFingerprint } from "@/lib/server/duplicates";
  * screenshot link and audit event are saved atomically — or not at all.
  */
 export const POST = handle(async (request: Request) => {
-  const { rivalry, pair, userId } = await requireRivalry({ needPair: true });
+  const { rivalry, roster, userId } = await requireRivalry({ needPlayers: true });
   const input = await parseJson(request, createMatchSchema);
   const playedAt = playedOnToTimestamp(input.played_on);
 
-  const memberIds = new Set([pair!.a.id, pair!.b.id]);
+  const memberIds = new Set(roster.map((p) => p.id));
   if (!input.sides.every((s) => memberIds.has(s.player_id))) {
     throw new ApiError("PLAYER_NOT_IN_RIVALRY", "Both players must be members of this rivalry.", 400);
   }
@@ -44,8 +45,16 @@ export const POST = handle(async (request: Request) => {
       // query here from aborting the outer transaction.
       let records: NewRecord[] = [];
       try {
+        // Records are per rivalry pair: compare only matches between these two players.
         const after = await tx.savepoint((sp) => loadMatches(sp, rivalry.id));
-        records = detectNewRecords(toPerspectives(before, pair!), toPerspectives(after, pair!), created.match_id, pair!);
+        const [x, y] = [input.sides[0].player_id, input.sides[1].player_id];
+        const pair = pairFor(roster, x, y);
+        records = detectNewRecords(
+          toPerspectives(matchesBetween(before, x, y), pair),
+          toPerspectives(matchesBetween(after, x, y), pair),
+          created.match_id,
+          pair,
+        );
       } catch (err) {
         console.error("[matches] record detection failed", err);
       }

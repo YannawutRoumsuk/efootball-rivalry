@@ -45,8 +45,28 @@ export function getAiConfig(): AiConfig | null {
   return null;
 }
 
-/** Shared numeric passcode for entering the app (see src/lib/auth/pin.ts). */
-export function getAppPin(): string | null {
-  const pin = process.env.APP_PIN?.trim();
-  return pin && /^\d{4,12}$/.test(pin) ? pin : null;
+/** Seats in the group; each has its own numeric PIN in PLAYER_<n>_PIN. */
+export const MAX_SEATS = 3;
+
+export interface SeatPin {
+  seat: number;
+  pin: string;
+}
+
+/**
+ * Reads PLAYER_1_PIN … PLAYER_3_PIN. A PIN must be 4–12 digits and unique;
+ * any problem disables PIN login and is reported (without values) by /api/health.
+ */
+export function getPlayerPins(): { pins: SeatPin[]; error: string | null } {
+  const pins: SeatPin[] = [];
+  for (let seat = 1; seat <= MAX_SEATS; seat += 1) {
+    const name = `PLAYER_${seat}_PIN`;
+    const raw = process.env[name]?.trim();
+    if (!raw) continue;
+    if (!/^\d{4,12}$/.test(raw)) return { pins: [], error: `${name} must be 4-12 digits` };
+    pins.push({ seat, pin: raw });
+  }
+  if (new Set(pins.map((p) => p.pin)).size !== pins.length) return { pins: [], error: "player PINs must be different" };
+  if (pins.length < 2) return { pins: [], error: "set at least PLAYER_1_PIN and PLAYER_2_PIN" };
+  return { pins, error: null };
 }

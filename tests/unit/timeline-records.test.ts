@@ -77,6 +77,10 @@ describe("insights", () => {
 });
 
 describe("match history query", () => {
+  const ROSTER = [
+    { ...PAIR.a, seat: 1 },
+    { ...PAIR.b, seat: 2 },
+  ];
   const all = [
     match(1, 1, 0),
     match(2, 0, 2, { aOnLeft: false }),
@@ -86,17 +90,20 @@ describe("match history query", () => {
   ];
 
   it("lists newest first and hides void by default", () => {
-    const page = queryHistory(all, PAIR, parseHistoryQuery({}));
+    const page = queryHistory(all, ROSTER, parseHistoryQuery({}));
     expect(page.items.map((m) => m.match_no)).toEqual([5, 3, 2, 1]);
   });
 
-  it("filters by winner using player IDs", () => {
-    expect(queryHistory(all, PAIR, parseHistoryQuery({ filter: "b_wins" })).items.map((m) => m.match_no)).toEqual([5, 2]);
-    expect(queryHistory(all, PAIR, parseHistoryQuery({ filter: "draws" })).items.map((m) => m.match_no)).toEqual([3]);
+  it("filters by player and by that player's wins, using player IDs", () => {
+    const q = (params: Record<string, string>) => queryHistory(all, ROSTER, parseHistoryQuery(params)).items.map((m) => m.match_no);
+    expect(q({ player: "2", wins: "1" })).toEqual([5, 2]);
+    expect(q({ player: "1", wins: "1" })).toEqual([1]);
+    expect(q({ player: "1" })).toEqual([5, 3, 2, 1]);
+    expect(q({ filter: "draws" })).toEqual([3]);
   });
 
   it("sorts highest-scoring first", () => {
-    const page = queryHistory(all, PAIR, parseHistoryQuery({ filter: "high_scoring", void: "1" }));
+    const page = queryHistory(all, ROSTER, parseHistoryQuery({ filter: "high_scoring", void: "1" }));
     expect(page.items[0].match_no).toBe(4);
     expect(page.items[1].match_no).toBe(3);
   });

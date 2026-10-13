@@ -1,11 +1,14 @@
 import "server-only";
 
+import { redirect } from "next/navigation";
 import { cache } from "react";
 import { ApiError } from "@/lib/api/envelope";
 import { toApiError } from "@/lib/api/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { withUser, type Tx } from "@/lib/db";
-import type { Match, MatchSide, Player, PlayerKey, PlayerPair } from "@/lib/domain/types";
+import type { RosterPlayer } from "@/lib/domain/league";
+import type { Match, MatchSide, Player } from "@/lib/domain/types";
+import { SEAT_ORDER_SQL } from "@/lib/auth/players";
 
 export interface Rivalry {
   id: string;
@@ -18,17 +21,12 @@ export interface RivalryContext {
   email: string;
   profile: Player;
   rivalry: Rivalry | null;
-  members: Player[];
-  /** Both players, once the friend has joined. Player A = room creator. */
-  pair: PlayerPair | null;
-  /** Which player the signed-in user is. */
-  me: PlayerKey | null;
+  /** Group members in seat order (seat 1 = owner). Seats drive colours and PINs. */
+  roster: RosterPlayer[];
+  /** The signed-in player's roster entry. */
+  me: RosterPlayer | null;
 }
 
-interface MemberRow extends Player {
-  role: "owner" | "member";
-  joined_at: string;
-}
 
 /** Loads the signed-in user, their profile and rivalry room (once per request). */
 export const getRivalryContext = cache(async (): Promise<RivalryContext | null> => {
@@ -47,31 +45,38 @@ export const getRivalryContext = cache(async (): Promise<RivalryContext | null> 
       email: user.email,
       profile: profile ?? { id: user.id, display_name: user.email.split("@")[0], avatar_url: null },
       rivalry: rivalry ?? null,
-      members: [],
-      pair: null,
+      roster: [],
       me: null,
     };
     if (!rivalry) return base;
 
-    const rows = await tx<MemberRow[]>`
-      select p.id, p.display_name, p.avatar_url, m.role, m.joined_at::text as joined_at
+    const rows = await tx<Player[]>`
+      select p.id, p.display_name, p.avatar_url
       from public.rivalry_members m join public.profiles p on p.id = m.user_id
       where m.rivalry_id = ${rivalry.id}
-      order by (m.role = 'owner') desc, m.joined_at`;
-    const members = rows.map(({ id, display_name, avatar_url }) => ({ id, display_name, avatar_url }));
-    const pair = members.length === 2 ? { a: members[0], b: members[1] } : null;
-    const me: PlayerKey | null = pair ? (pair.a.id === user.id ? "a" : "b") : null;
-    return { ...base, members, pair, me };
+      order by ${tx.unsafe(SEAT_ORDER_SQL)}`;
+    const roster: RosterPlayer[] = rows.map((r, i) => ({ ...r, seat: i + 1 }));
+    return { ...base, roster, me: roster.find((r) => r.id === user.id) ?? null };
   });
 });
 
-/** For route handlers: requires a signed-in user who belongs to a rivalry. */
-export async function requireRivalry(opts: { needPair?: boolean } = {}) {
+/**
+ * For pages. Layouts and pages render in parallel, so every page must guard
+ * itself rather than rely on the layout's redirect.
+ */
+export async function requirePageContext() {
+  const ctx = await getRivalryContext();
+  if (!ctx?.rivalry) redirect("/login");
+  return ctx as RivalryContext & { rivalry: Rivalry };
+}
+
+/** For route handlers: requires a signed-in user who belongs to a group. */
+export async function requireRivalry(opts: { needPlayers?: boolean } = {}) {
   const ctx = await getRivalryContext();
   if (!ctx) throw new ApiError("UNAUTHENTICATED", "Please sign in.", 401);
-  if (!ctx.rivalry) throw new ApiError("NOT_IN_RIVALRY", "Create or join a rivalry room first.", 409);
-  if (opts.needPair && !ctx.pair) {
-    throw new ApiError("RIVALRY_INCOMPLETE", "Your friend needs to join the room first.", 409);
+  if (!ctx.rivalry) throw new ApiError("NOT_IN_RIVALRY", "Sign in with your player code first.", 409);
+  if (opts.needPlayers && ctx.roster.length < 2) {
+    throw new ApiError("RIVALRY_INCOMPLETE", "At least two players are needed.", 409);
   }
   return ctx as RivalryContext & { rivalry: Rivalry };
 }

@@ -4,13 +4,14 @@ import { AlertTriangle, OctagonX } from "lucide-react";
 import { useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { STAT_KEYS, STAT_LABELS, type PlayerKey, type ScreenSide, type StatKey } from "@/lib/domain/types";
+import { seatColor } from "@/components/player/seat-scope";
+import { STAT_KEYS, STAT_LABELS, type ScreenSide, type StatKey } from "@/lib/domain/types";
 import type { DraftSide, ValidationIssue } from "@/lib/domain/validation";
 import { cn } from "@/lib/utils";
 
 export interface SideMeta {
   name: string;
-  playerKey: PlayerKey;
+  seat: number;
 }
 
 interface StatsEditorProps {
@@ -94,8 +95,7 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
   const issueFor = (side: ScreenSide, field: StatKey | "goals") =>
     issues.find((i) => i.side === side && i.field === field && i.severity === "error") ??
     issues.find((i) => i.side === side && i.field === field);
-  const tone = (side: ScreenSide) =>
-    meta[side]?.playerKey === "a" ? "text-player-a" : meta[side]?.playerKey === "b" ? "text-player-b" : "text-muted-foreground";
+  const tone = (side: ScreenSide) => (meta[side] ? { color: seatColor(meta[side]!.seat) } : undefined);
 
   return (
     <div className="space-y-5">
@@ -104,7 +104,7 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
           const d = side === "left" ? left : right;
           return (
             <div key={side} className={cn("space-y-2", side === "right" && "text-right")}>
-              <p className={cn("eyebrow", tone(side))}>
+              <p className="eyebrow" style={tone(side)}>
                 {side}{meta[side] ? ` · ${meta[side]!.name}` : ""}
               </p>
               <Label htmlFor={`${id}-${side}-label`} className={cn("text-xs text-muted-foreground", side === "right" && "justify-end")}>

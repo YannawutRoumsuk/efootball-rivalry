@@ -1,22 +1,32 @@
 import "server-only";
 
 import { createHash, timingSafeEqual } from "node:crypto";
-import { getAppPin } from "@/lib/env";
+import { getPlayerPins } from "@/lib/env";
 
-/** Constant-time comparison of a submitted PIN with APP_PIN. */
-export function pinMatches(submitted: string): boolean {
-  const expected = getAppPin();
-  if (!expected) return false;
-  const a = createHash("sha256").update(submitted, "utf8").digest();
-  const b = createHash("sha256").update(expected, "utf8").digest();
-  return timingSafeEqual(a, b);
+const digest = (value: string) => createHash("sha256").update(value, "utf8").digest();
+
+/**
+ * Finds the seat whose PIN matches. Every configured PIN is compared in
+ * constant time, so response timing doesn't reveal which seat was close.
+ */
+export function seatForPin(submitted: string): number | null {
+  const candidate = digest(submitted);
+  let found: number | null = null;
+  for (const { seat, pin } of getPlayerPins().pins) {
+    if (timingSafeEqual(candidate, digest(pin)) && found === null) found = seat;
+  }
+  return found;
 }
 
 /**
- * Fingerprint of the current APP_PIN stored on each session. When the PIN
- * changes, the fingerprint no longer matches and old sessions stop working.
+ * Stored on each session. Binding it to the user AND their current PIN means
+ * changing one player's PIN signs only that player out.
  */
-export function currentPinFingerprint(): string | null {
-  const pin = getAppPin();
-  return pin ? createHash("sha256").update(`rivalry-pin:${pin}`, "utf8").digest("hex").slice(0, 32) : null;
+export function pinFingerprint(userId: string, pin: string): string {
+  return createHash("sha256").update(`rivalry-pin:${userId}:${pin}`, "utf8").digest("hex").slice(0, 32);
+}
+
+export function pinForSeat(seat: number | null): string | null {
+  if (seat === null) return null;
+  return getPlayerPins().pins.find((p) => p.seat === seat)?.pin ?? null;
 }

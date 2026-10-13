@@ -18,7 +18,6 @@ const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 describe.skipIf(!url)("real PostgreSQL", async () => {
   const { sql, withUser } = await import("@/lib/db");
   const { subscribe } = await import("@/lib/server/realtime");
-  const { hashPassword, verifyPassword } = await import("@/lib/auth/password");
 
   async function createUser(name: string): Promise<string> {
     const [row] = await sql()<Array<{ id: string }>>`
@@ -59,6 +58,11 @@ describe.skipIf(!url)("real PostgreSQL", async () => {
   it("(12) concurrent joins: exactly one of two racing users gets the last seat", async () => {
     const owner = await createUser("Owner");
     const [{ id: room }] = await withUser(owner, (tx) => tx<Array<{ id: string }>>`select public.create_rivalry('Race') as id`);
+    // Fill the second seat so only one seat (the third) is left to race for.
+    const second = await createUser("Second");
+    const secondCode = randomUUID();
+    await withUser(owner, (tx) => tx`select public.create_rivalry_invite(${hash(secondCode)}::text, 1)`);
+    await withUser(second, (tx) => tx`select public.accept_rivalry_invite(${hash(secondCode)}::text)`);
     // Two valid invites for the same room, redeemed at the same moment.
     const codes = [randomUUID(), randomUUID()];
     for (const c of codes) {
@@ -74,7 +78,7 @@ describe.skipIf(!url)("real PostgreSQL", async () => {
     const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
     expect(String(rejected.reason)).toMatch(/RIVALRY_FULL/);
     const [{ n }] = await sql()<Array<{ n: number }>>`select count(*)::int as n from public.rivalry_members where rivalry_id = ${room}`;
-    expect(n).toBe(2);
+    expect(n).toBe(3);
     await sql()`delete from public.rivalries where id = ${room}`;
   });
 
@@ -125,17 +129,24 @@ describe.skipIf(!url)("real PostgreSQL", async () => {
     stopStray();
   });
 
-  it("PIN seats: reuses the existing rivalry and is idempotent", async () => {
+  it("PIN seats: keeps existing players, adds a third seat once, idempotently", async () => {
     const { ensureSeats } = await import("@/lib/auth/players");
     const [{ id: oldest }] = await sql()<Array<{ id: string }>>`select id from public.rivalries order by created_at limit 1`;
-    const first = await ensureSeats();
-    const second = await ensureSeats();
-    expect(first).toHaveLength(2);
-    expect(second.map((s) => s.id)).toEqual(first.map((s) => s.id));
-    const [{ n }] = await sql()<Array<{ n: number }>>`
-      select count(*)::int as n from public.rivalry_members where rivalry_id = ${oldest}`;
-    expect(n).toBe(2);
-    expect(first.map((s) => s.key)).toEqual(["a", "b"]);
+    const before = await sql()<Array<{ user_id: string }>>`
+      select user_id from public.rivalry_members where rivalry_id = ${oldest} order by (role = 'owner') desc, joined_at`;
+
+    Object.assign(process.env, { PLAYER_1_PIN: "1111", PLAYER_2_PIN: "2222", PLAYER_3_PIN: "3333", PLAYER_3_NAME: "เพื่อนคนที่สาม" });
+    try {
+      const first = await ensureSeats();
+      const second = await ensureSeats();
+      expect(first.map((s) => s.seat)).toEqual([1, 2, 3]);
+      expect(second.map((s) => s.id)).toEqual(first.map((s) => s.id));
+      // Existing players keep their seats (and therefore their history).
+      expect(first.slice(0, before.length).map((s) => s.id)).toEqual(before.map((r) => r.user_id));
+      expect(first[2].name).toBe(before.length < 3 ? "เพื่อนคนที่สาม" : first[2].name);
+    } finally {
+      for (const k of ["PLAYER_1_PIN", "PLAYER_2_PIN", "PLAYER_3_PIN", "PLAYER_3_NAME"]) delete process.env[k];
+    }
   });
 
   it("stores Thai names and labels intact (UTF-8 end to end)", async () => {
@@ -144,10 +155,4 @@ describe.skipIf(!url)("real PostgreSQL", async () => {
     expect(p.display_name).toBe("เพื่อนซี้");
   });
 
-  it("password hashing round-trips and rejects wrong passwords", async () => {
-    const stored = await hashPassword("correct horse battery");
-    expect(stored.startsWith("scrypt$")).toBe(true);
-    expect(await verifyPassword("correct horse battery", stored)).toBe(true);
-    expect(await verifyPassword("wrong", stored)).toBe(false);
-  });
 });

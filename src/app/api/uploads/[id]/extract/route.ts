@@ -22,7 +22,7 @@ const LIMIT_MESSAGE = "Too many AI extractions. Please wait a few minutes.";
  */
 export const POST = handle(async (_request: Request, context: RouteContext<"/api/uploads/[id]/extract">) => {
   const id = requireUuid((await context.params).id);
-  const { rivalry, userId } = await requireRivalry({ needPair: true });
+  const { rivalry, userId } = await requireRivalry({ needPlayers: true });
 
   const config = getAiConfig();
   if (!config) {

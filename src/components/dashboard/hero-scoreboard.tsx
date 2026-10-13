@@ -6,12 +6,12 @@ import { pct, signed } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface HeroScoreboardProps {
-  pair: PlayerPair;
+  pair: PlayerPair & { seats?: [number, number] };
   summary: RivalrySummary;
   me: PlayerKey | null;
 }
 
-function PlayerBlock({ pair, k, summary, me }: { pair: PlayerPair; k: PlayerKey; summary: RivalrySummary; me: PlayerKey | null }) {
+function PlayerBlock({ pair, k, summary, me }: { pair: PlayerPair & { seats?: [number, number] }; k: PlayerKey; summary: RivalrySummary; me: PlayerKey | null }) {
   const p = pair[k];
   const s = summary[k];
   const right = k === "b";
@@ -21,7 +21,7 @@ function PlayerBlock({ pair, k, summary, me }: { pair: PlayerPair; k: PlayerKey;
         <PlayerAvatar name={p.display_name} avatarUrl={p.avatar_url} playerKey={k} size="lg" className="max-sm:size-12 max-sm:text-base" />
         <div className="min-w-0">
           <p className={cn("eyebrow", k === "a" ? "text-player-a" : "text-player-b")}>
-            Player {k.toUpperCase()}
+            Player {pair.seats ? pair.seats[k === "a" ? 0 : 1] : k.toUpperCase()}
             {me === k && <span className="text-muted-foreground"> · You</span>}
           </p>
           <p className="truncate font-display text-lg font-bold sm:text-2xl">{p.display_name}</p>

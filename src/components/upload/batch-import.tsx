@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/envelope";
-import { emptyDraft, resolvePlayers, toSideInputs, type LeftOwner, type MatchDraft } from "@/lib/client/draft";
+import { seatColor } from "@/components/player/seat-scope";
+import { emptyDraft, playersChosen, toSideInputs, type MatchDraft } from "@/lib/client/draft";
 import { extractUpload, saveMatch } from "@/lib/client/matches";
 import { prepareImageFile, uploadScreenshot } from "@/lib/client/upload";
 import type { DuplicateCandidate } from "@/lib/domain/duplicates";
-import type { PlayerKey, PlayerPair } from "@/lib/domain/types";
+import type { RosterPlayer } from "@/lib/domain/league";
 import { hasErrors, validateSides } from "@/lib/domain/validation";
 import { cn } from "@/lib/utils";
 import { DuplicateWarning } from "./duplicate-warning";
@@ -36,12 +37,11 @@ interface Item {
 
 const MAX_FILES = 30;
 
-export function BatchImport({ pair, me, aiEnabled }: { pair: PlayerPair; me: PlayerKey; aiEnabled: boolean }) {
+export function BatchImport({ roster, meId, aiEnabled }: { roster: RosterPlayer[]; meId: string; aiEnabled: boolean }) {
   const [items, setItems] = useState<Item[]>([]);
   const [insertBefore, setInsertBefore] = useState("");
   const [importing, setImporting] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
-  const myId = pair[me].id;
 
   const patch = (key: string, p: Partial<Item> | ((i: Item) => Partial<Item>)) =>
     setItems((list) => list.map((i) => (i.key === key ? { ...i, ...(typeof p === "function" ? p(i) : p) } : i)));
@@ -108,7 +108,7 @@ export function BatchImport({ pair, me, aiEnabled }: { pair: PlayerPair; me: Pla
   const pending = items.filter((i) => i.status !== "saved");
   const isReady = (i: Item) =>
     (i.status === "ready" || i.status === "duplicate") &&
-    i.draft.leftOwner !== null &&
+    playersChosen(i.draft) &&
     !hasErrors(validateSides(i.draft.left, i.draft.right)) &&
     (i.status !== "duplicate" || i.acknowledged);
   const readyCount = pending.filter(isReady).length;
@@ -121,9 +121,8 @@ export function BatchImport({ pair, me, aiEnabled }: { pair: PlayerPair; me: Pla
       if (item.status === "saved" || !isReady(item)) continue;
       patch(item.key, { status: "saving" });
       try {
-        const players = resolvePlayers(pair, myId, item.draft.leftOwner!);
         const outcome = await saveMatch(
-          { upload_id: item.uploadId, played_on: item.draft.playedOn, sides: toSideInputs(item.draft, players), insert_at: position },
+          { upload_id: item.uploadId, played_on: item.draft.playedOn, sides: toSideInputs(item.draft), insert_at: position },
           item.acknowledged,
         );
         if (outcome.kind === "duplicate") {
@@ -146,7 +145,7 @@ export function BatchImport({ pair, me, aiEnabled }: { pair: PlayerPair; me: Pla
       <div className="panel flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center">
         <div className="flex-1">
           <p className="font-display font-semibold">Add historical screenshots</p>
-          <p className="text-sm text-muted-foreground">Order the queue oldest → newest. Each match still needs its left side confirmed.</p>
+          <p className="text-sm text-muted-foreground">Order the queue oldest → newest. Each match still needs both players confirmed.</p>
         </div>
         <Button className="h-11" onClick={() => picker.current?.click()} disabled={items.length >= MAX_FILES}>
           <Images /> Choose screenshots
@@ -175,9 +174,8 @@ export function BatchImport({ pair, me, aiEnabled }: { pair: PlayerPair; me: Pla
                 item={item}
                 index={idx}
                 total={items.length}
-                pair={pair}
-                me={me}
-                myId={myId}
+                roster={roster}
+                meId={meId}
                 onPatch={(p) => patch(item.key, p)}
                 onMove={(d) => move(item.key, d)}
                 onRemove={() => setItems((l) => l.filter((x) => x.key !== item.key))}
@@ -208,22 +206,30 @@ export function BatchImport({ pair, me, aiEnabled }: { pair: PlayerPair; me: Pla
   );
 }
 
-function BatchRow({ item, index, total, pair, me, myId, onPatch, onMove, onRemove }: {
+function BatchRow({ item, index, total, roster, meId, onPatch, onMove, onRemove }: {
   item: Item;
   index: number;
   total: number;
-  pair: PlayerPair;
-  me: PlayerKey;
-  myId: string;
+  roster: RosterPlayer[];
+  meId: string;
   onPatch: (p: Partial<Item>) => void;
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
 }) {
   const d = item.draft;
   const issues = validateSides(d.left, d.right);
-  const friend: PlayerKey = me === "a" ? "b" : "a";
-  const players = d.leftOwner ? resolvePlayers(pair, myId, d.leftOwner) : null;
-  const keyOf = (id: string): PlayerKey => (pair.a.id === id ? "a" : "b");
+  const metaFor = (id: string | null) => {
+    const p = roster.find((r) => r.id === id);
+    return p ? { name: p.display_name, seat: p.seat } : null;
+  };
+  const pick = (side: "leftPlayer" | "rightPlayer", id: string) => {
+    const next = { ...d, [side]: id };
+    const other = side === "leftPlayer" ? "rightPlayer" : "leftPlayer";
+    if (next[other] === id) next[other] = null;
+    // Two players: choosing one side settles the other.
+    if (roster.length === 2) next[other] = roster.find((r) => r.id !== id)!.id;
+    onPatch({ draft: next });
+  };
   const locked = item.status === "saved" || item.status === "saving" || item.status === "processing";
 
   return (
@@ -248,29 +254,30 @@ function BatchRow({ item, index, total, pair, me, myId, onPatch, onMove, onRemov
 
       {!locked && item.status !== "error" && (
         <div className="mt-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Left side:</span>
-            {(["me", "friend"] as LeftOwner[]).map((o) => {
-              const k = o === "me" ? me : friend;
-              return (
-                <button
-                  key={o}
-                  type="button"
-                  aria-pressed={d.leftOwner === o}
-                  onClick={() => onPatch({ draft: { ...d, leftOwner: o } })}
-                  className={cn(
-                    "h-9 rounded-lg border-2 px-3 font-medium",
-                    d.leftOwner === o ? (k === "a" ? "border-player-a bg-player-a/15" : "border-player-b bg-player-b/15") : "border-border text-muted-foreground",
-                  )}
-                >
-                  {o === "me" ? "Me" : "Friend"} · {pair[k].display_name}
-                </button>
-              );
-            })}
-            <button type="button" onClick={() => onPatch({ open: !item.open })} className="ml-auto inline-flex h-9 items-center gap-1 text-muted-foreground hover:text-foreground">
-              Review stats <ChevronDown className={cn("size-4 transition-transform", item.open && "rotate-180")} />
-            </button>
-          </div>
+          {(["leftPlayer", "rightPlayer"] as const).map((side) => (
+            <div key={side} className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="w-12 text-muted-foreground">{side === "leftPlayer" ? "Left:" : "Right:"}</span>
+              {roster.map((p) => {
+                const selected = d[side] === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => pick(side, p.id)}
+                    style={selected ? { borderColor: seatColor(p.seat), background: `color-mix(in oklch, ${seatColor(p.seat)} 15%, transparent)` } : undefined}
+                    className={cn("h-9 rounded-lg border-2 px-3 font-medium", !selected && "border-border text-muted-foreground")}
+                  >
+                    {p.display_name}
+                    {p.id === meId ? " (you)" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+          <button type="button" onClick={() => onPatch({ open: !item.open })} className="inline-flex h-9 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            Review stats <ChevronDown className={cn("size-4 transition-transform", item.open && "rotate-180")} />
+          </button>
           {item.status === "duplicate" && (
             <div className="space-y-2">
               <DuplicateWarning duplicates={item.duplicates} />
@@ -285,14 +292,7 @@ function BatchRow({ item, index, total, pair, me, myId, onPatch, onMove, onRemov
             <StatsEditor
               left={d.left}
               right={d.right}
-              meta={
-                players
-                  ? {
-                      left: { name: pair[keyOf(players.left)].display_name, playerKey: keyOf(players.left) },
-                      right: { name: pair[keyOf(players.right)].display_name, playerKey: keyOf(players.right) },
-                    }
-                  : { left: null, right: null }
-              }
+              meta={{ left: metaFor(d.leftPlayer), right: metaFor(d.rightPlayer) }}
               issues={issues}
               playedOn={d.playedOn}
               onSideChange={(side, p) => onPatch({ draft: { ...d, [side]: { ...d[side], ...p } } })}

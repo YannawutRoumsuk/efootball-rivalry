@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <span className="bg-gradient-to-r from-player-a to-player-b bg-clip-text text-transparent">One rivalry.</span>
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Enter the room code, pick who you are, and settle who&apos;s really better.
+          Enter your player code and settle who&apos;s really the best.
         </p>
       </div>
       <div className="panel p-5 sm:p-6">

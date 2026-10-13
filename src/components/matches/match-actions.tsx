@@ -12,16 +12,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatsEditor } from "@/components/upload/stats-editor";
 import { SideAssign } from "@/components/upload/side-assign";
 import { apiFetch, ApiError } from "@/lib/api/envelope";
-import { resolvePlayers, toSideInputs, type MatchDraft } from "@/lib/client/draft";
-import type { Match, PlayerKey, PlayerPair, ScreenSide } from "@/lib/domain/types";
+import { playersChosen, toSideInputs, type MatchDraft } from "@/lib/client/draft";
+import type { RosterPlayer } from "@/lib/domain/league";
+import type { Match, ScreenSide } from "@/lib/domain/types";
 import { hasErrors, validateSides, type DraftSide } from "@/lib/domain/validation";
 
 type Action = "dispute" | "resolve" | "void" | "restore";
 
 interface MatchActionsProps {
   match: Match;
-  pair: PlayerPair;
-  me: PlayerKey;
+  roster: RosterPlayer[];
+  meId: string;
   maxMatchNo: number;
 }
 
@@ -33,7 +34,7 @@ function toDraftSide(m: Match, side: ScreenSide): DraftSide {
   return draft as DraftSide;
 }
 
-export function MatchActions({ match, pair, me, maxMatchNo }: MatchActionsProps) {
+export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [statusAction, setStatusAction] = useState<Action | null>(null);
@@ -41,12 +42,12 @@ export function MatchActions({ match, pair, me, maxMatchNo }: MatchActionsProps)
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState(false);
   const [position, setPosition] = useState(String(match.match_no));
-  const myId = pair[me].id;
 
   const initialDraft = (): MatchDraft => ({
     left: toDraftSide(match, "left"),
     right: toDraftSide(match, "right"),
-    leftOwner: match.sides.find((s) => s.screen_side === "left")!.player_id === myId ? "me" : "friend",
+    leftPlayer: match.sides.find((s) => s.screen_side === "left")!.player_id,
+    rightPlayer: match.sides.find((s) => s.screen_side === "right")!.player_id,
     playedOn: match.played_at ? match.played_at.slice(0, 10) : null,
   });
   const [draft, setDraft] = useState<MatchDraft>(initialDraft);
@@ -77,12 +78,11 @@ export function MatchActions({ match, pair, me, maxMatchNo }: MatchActionsProps)
     );
 
   const submitEdit = () => {
-    const players = resolvePlayers(pair, myId, draft.leftOwner!);
     return run(
       () =>
         apiFetch(`/api/matches/${match.id}`, {
           method: "PATCH",
-          body: JSON.stringify({ played_on: draft.playedOn, sides: toSideInputs(draft, players), note: editNote || null }),
+          body: JSON.stringify({ played_on: draft.playedOn, sides: toSideInputs(draft), note: editNote || null }),
         }),
       "Match corrected",
     );
@@ -94,8 +94,10 @@ export function MatchActions({ match, pair, me, maxMatchNo }: MatchActionsProps)
       "Match order updated",
     );
 
-  const keyOf = (id: string): PlayerKey => (pair.a.id === id ? "a" : "b");
-  const players = draft.leftOwner ? resolvePlayers(pair, myId, draft.leftOwner) : null;
+  const metaFor = (id: string | null) => {
+    const p = roster.find((r) => r.id === id);
+    return p ? { name: p.display_name, seat: p.seat } : null;
+  };
   const statusCopy: Record<Action, { title: string; body: string; needsNote: boolean; cta: string }> = {
     dispute: { title: "Report a mistake", body: "Disputed matches are excluded from official stats until resolved.", needsNote: true, cta: "Flag as disputed" },
     resolve: { title: "Resolve dispute", body: "The match counts toward official stats again.", needsNote: false, cta: "Mark resolved" },
@@ -183,18 +185,19 @@ export function MatchActions({ match, pair, me, maxMatchNo }: MatchActionsProps)
             <DialogTitle>Correct match #{match.match_no}</DialogTitle>
             <DialogDescription>Every change is recorded in the match history with before/after values.</DialogDescription>
           </DialogHeader>
-          <SideAssign left={draft.left} right={draft.right} pair={pair} me={me} value={draft.leftOwner} onChange={(o) => setDraft((d) => ({ ...d, leftOwner: o }))} />
+          <SideAssign
+            left={draft.left}
+            right={draft.right}
+            roster={roster}
+            meId={meId}
+            leftPlayer={draft.leftPlayer}
+            rightPlayer={draft.rightPlayer}
+            onChange={(next) => setDraft((d) => ({ ...d, ...next }))}
+          />
           <StatsEditor
             left={draft.left}
             right={draft.right}
-            meta={
-              players
-                ? {
-                    left: { name: pair[keyOf(players.left)].display_name, playerKey: keyOf(players.left) },
-                    right: { name: pair[keyOf(players.right)].display_name, playerKey: keyOf(players.right) },
-                  }
-                : { left: null, right: null }
-            }
+            meta={{ left: metaFor(draft.leftPlayer), right: metaFor(draft.rightPlayer) }}
             issues={issues}
             playedOn={draft.playedOn}
             onSideChange={(side, patch) => setDraft((d) => ({ ...d, [side]: { ...d[side], ...patch } }))}
@@ -206,7 +209,7 @@ export function MatchActions({ match, pair, me, maxMatchNo }: MatchActionsProps)
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
-            <Button disabled={busy || !draft.leftOwner || hasErrors(issues)} onClick={submitEdit}>
+            <Button disabled={busy || !playersChosen(draft) || hasErrors(issues)} onClick={submitEdit}>
               {busy && <Loader2 className="animate-spin" />} Save correction
             </Button>
           </DialogFooter>

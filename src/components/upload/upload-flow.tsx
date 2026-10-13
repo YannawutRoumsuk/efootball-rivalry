@@ -7,11 +7,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ApiError } from "@/lib/api/envelope";
-import { emptyDraft, resolvePlayers, toSideInputs, type LeftOwner, type MatchDraft } from "@/lib/client/draft";
+import { emptyDraft, playersChosen, toSideInputs, type MatchDraft } from "@/lib/client/draft";
 import { checkDuplicates, extractUpload, saveMatch, type SaveResult } from "@/lib/client/matches";
 import { prepareImageFile, uploadScreenshot } from "@/lib/client/upload";
 import type { DuplicateCandidate } from "@/lib/domain/duplicates";
-import type { PlayerKey, PlayerPair, ScreenSide } from "@/lib/domain/types";
+import type { RosterPlayer } from "@/lib/domain/league";
+import type { ScreenSide } from "@/lib/domain/types";
 import { hasErrors, validateSides, type DraftSide, type ValidationIssue } from "@/lib/domain/validation";
 import { DuplicateWarning } from "./duplicate-warning";
 import { ImagePicker } from "./image-picker";
@@ -24,8 +25,8 @@ type Step = "pick" | "processing" | "assign" | "review" | "duplicate" | "done";
 type Phase = "converting" | "uploading" | "extracting";
 
 interface UploadFlowProps {
-  pair: PlayerPair;
-  me: PlayerKey;
+  roster: RosterPlayer[];
+  meId: string;
   aiEnabled: boolean;
 }
 
@@ -36,7 +37,7 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: "done", label: "Saved" },
 ];
 
-export function UploadFlow({ pair, me, aiEnabled }: UploadFlowProps) {
+export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
   const [step, setStep] = useState<Step>("pick");
   const [phase, setPhase] = useState<Phase>("uploading");
   const [progress, setProgress] = useState(0);
@@ -49,15 +50,23 @@ export function UploadFlow({ pair, me, aiEnabled }: UploadFlowProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<SaveResult | null>(null);
 
-  const myId = pair[me].id;
-  const players = draft.leftOwner ? resolvePlayers(pair, myId, draft.leftOwner) : null;
-  const keyOf = (id: string): PlayerKey => (pair.a.id === id ? "a" : "b");
-  const meta: Record<ScreenSide, SideMeta | null> = players
-    ? {
-        left: { name: pair[keyOf(players.left)].display_name, playerKey: keyOf(players.left) },
-        right: { name: pair[keyOf(players.right)].display_name, playerKey: keyOf(players.right) },
-      }
-    : { left: null, right: null };
+  const chosen = playersChosen(draft);
+  const metaFor = (id: string | null): SideMeta | null => {
+    const p = roster.find((r) => r.id === id);
+    return p ? { name: p.display_name, seat: p.seat } : null;
+  };
+  const meta: Record<ScreenSide, SideMeta | null> = { left: metaFor(draft.leftPlayer), right: metaFor(draft.rightPlayer) };
+  const assign = (
+    <SideAssign
+      left={draft.left}
+      right={draft.right}
+      roster={roster}
+      meId={meId}
+      leftPlayer={draft.leftPlayer}
+      rightPlayer={draft.rightPlayer}
+      onChange={(next) => setDraft((d) => ({ ...d, ...next }))}
+    />
+  );
 
   const issues = useMemo(() => {
     const live = validateSides(draft.left, draft.right);
@@ -138,15 +147,15 @@ export function UploadFlow({ pair, me, aiEnabled }: UploadFlowProps) {
   }
 
   async function save(acknowledge: boolean) {
-    if (!players) {
-      toast.error("Choose who played on the left side first.");
+    if (!chosen) {
+      toast.error("Choose who played on each side first.");
       return;
     }
     if (hasErrors(issues)) {
       toast.error("Fix the highlighted errors before saving.");
       return;
     }
-    const payload = { upload_id: uploadId, played_on: draft.playedOn, sides: toSideInputs(draft, players) };
+    const payload = { upload_id: uploadId, played_on: draft.playedOn, sides: toSideInputs(draft) };
     setSaving(true);
     try {
       if (!acknowledge) {
@@ -245,28 +254,19 @@ export function UploadFlow({ pair, me, aiEnabled }: UploadFlowProps) {
           <div className="panel space-y-6 p-4 sm:p-6">
             {step === "assign" ? (
               <>
-                <SideAssign
-                  left={draft.left}
-                  right={draft.right}
-                  pair={pair}
-                  me={me}
-                  value={draft.leftOwner}
-                  onChange={(o: LeftOwner) => setDraft((d) => ({ ...d, leftOwner: o }))}
-                />
+                {assign}
                 <div className="flex gap-2">
                   <Button variant="ghost" onClick={reset} className="h-11">
                     <RotateCcw /> Start over
                   </Button>
-                  <Button className="h-11 flex-1" disabled={!draft.leftOwner} onClick={() => setStep("review")}>
+                  <Button className="h-11 flex-1" disabled={!chosen} onClick={() => setStep("review")}>
                     Confirm sides
                   </Button>
                 </div>
               </>
             ) : (
               <>
-                {step === "review" && !draft.leftOwner && (
-                  <SideAssign left={draft.left} right={draft.right} pair={pair} me={me} value={draft.leftOwner} onChange={(o) => setDraft((d) => ({ ...d, leftOwner: o }))} />
-                )}
+                {step === "review" && !chosen && assign}
                 <StatsEditor
                   left={draft.left}
                   right={draft.right}
@@ -293,7 +293,7 @@ export function UploadFlow({ pair, me, aiEnabled }: UploadFlowProps) {
                     <Button variant="ghost" className="h-11" onClick={() => (preview ? setStep("assign") : reset())}>
                       <ArrowLeft /> Back
                     </Button>
-                    <Button className="h-12 flex-1 text-base" disabled={saving || !draft.leftOwner || hasErrors(issues)} onClick={() => save(false)}>
+                    <Button className="h-12 flex-1 text-base" disabled={saving || !chosen || hasErrors(issues)} onClick={() => save(false)}>
                       {saving && <Loader2 className="animate-spin" />} Confirm &amp; save match
                     </Button>
                   </div>
@@ -311,7 +311,7 @@ export function UploadFlow({ pair, me, aiEnabled }: UploadFlowProps) {
           </span>
           <div>
             <h2 className="font-display text-2xl font-bold">Match #{saved.matchNo} saved</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Your friend sees it on their dashboard right away.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Everyone sees it on their dashboard right away.</p>
           </div>
           <RecordsCelebration records={saved.records} />
           <div className="flex flex-wrap gap-2">

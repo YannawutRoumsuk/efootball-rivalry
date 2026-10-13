@@ -1,5 +1,5 @@
 import { isDatabaseConfigured, sql } from "@/lib/db";
-import { getAiConfig, getAppPin } from "@/lib/env";
+import { getAiConfig, getPlayerPins } from "@/lib/env";
 import { checkStorageWritable } from "@/lib/server/storage";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +19,7 @@ export async function GET() {
   const storage = (await checkStorageWritable()) ? "writable" : "unavailable";
   const ok = database === "up" && storage === "writable";
   const ai = getAiConfig()?.provider ?? "off";
-  const login = getAppPin() ? "pin" : "not_configured";
+  const pins = getPlayerPins();
+  const login = pins.error ? `not_configured: ${pins.error}` : `pin (${pins.pins.length} players)`;
   return Response.json({ ok, database, storage, ai, login }, { status: ok ? 200 : 503 });
 }

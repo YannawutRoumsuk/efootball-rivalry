@@ -7,22 +7,18 @@ import { HistoryFilters } from "@/components/matches/history-filters";
 import { MatchCard } from "@/components/matches/match-card";
 import { Button } from "@/components/ui/button";
 import { parseHistoryQuery, queryHistory } from "@/lib/domain/history";
-import { asUser, getRivalryContext, loadMatches } from "@/lib/server/context";
+import { asUser, requirePageContext, loadMatches } from "@/lib/server/context";
 
 export const metadata = { title: "Match history" };
 
 export default async function MatchesPage({ searchParams }: PageProps<"/matches">) {
   const params = await searchParams;
-  const ctx = (await getRivalryContext())!;
-  const pair = ctx.pair;
-
-  if (!pair) {
-    return <EmptyState icon={History} title="No matches yet" description="Invite your friend from the Room page to start recording matches." />;
-  }
+  const ctx = await requirePageContext();
+  const roster = ctx.roster;
 
   const all = await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id));
   const query = parseHistoryQuery(params);
-  const page = queryHistory(all, pair, query);
+  const page = queryHistory(all, roster, query);
 
   const pageHref = (n: number) => {
     const sp = new URLSearchParams();
@@ -46,7 +42,7 @@ export default async function MatchesPage({ searchParams }: PageProps<"/matches"
         }
       />
       <Suspense>
-        <HistoryFilters names={{ a: pair.a.display_name, b: pair.b.display_name }} />
+        <HistoryFilters players={roster.map((p) => ({ seat: p.seat, name: p.display_name }))} />
       </Suspense>
 
       {all.length === 0 ? (
@@ -70,7 +66,7 @@ export default async function MatchesPage({ searchParams }: PageProps<"/matches"
           <ul className="grid gap-3 md:grid-cols-2">
             {page.items.map((m) => (
               <li key={m.id}>
-                <MatchCard match={m} pair={pair} />
+                <MatchCard match={m} roster={roster} />
               </li>
             ))}
           </ul>

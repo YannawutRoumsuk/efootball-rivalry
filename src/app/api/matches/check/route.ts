@@ -5,7 +5,7 @@ import { findDuplicates, loadUploadFingerprint } from "@/lib/server/duplicates";
 
 /** Step 5: duplicate warnings before saving (image hashes + match data). */
 export const POST = handle(async (request: Request) => {
-  const { rivalry, userId } = await requireRivalry({ needPair: true });
+  const { rivalry, userId } = await requireRivalry({ needPlayers: true });
   const input = await parseJson(request, duplicateCheckSchema);
 
   const duplicates = await asUser(userId, async (tx) => {

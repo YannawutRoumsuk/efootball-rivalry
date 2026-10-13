@@ -1,34 +1,47 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { currentPinFingerprint, pinMatches } from "@/lib/auth/pin";
-import { getAiConfig, getAppPin } from "@/lib/env";
+import { pinFingerprint, pinForSeat, seatForPin } from "@/lib/auth/pin";
+import { getAiConfig, getPlayerPins } from "@/lib/env";
 
 const saved = { ...process.env };
 afterEach(() => {
   process.env = { ...saved };
 });
 
-describe("APP_PIN login", () => {
-  it("accepts only the configured numeric PIN", () => {
-    process.env.APP_PIN = "482913";
-    expect(pinMatches("482913")).toBe(true);
-    expect(pinMatches("482914")).toBe(false);
-    expect(pinMatches("")).toBe(false);
+function setPins(p1?: string, p2?: string, p3?: string) {
+  for (const [n, v] of [[1, p1], [2, p2], [3, p3]] as const) {
+    if (v === undefined) delete process.env[`PLAYER_${n}_PIN`];
+    else process.env[`PLAYER_${n}_PIN`] = v;
+  }
+}
+
+describe("per-player PIN login", () => {
+  it("maps each PIN to its own seat", () => {
+    setPins("1111", "2222", "3333");
+    expect(seatForPin("1111")).toBe(1);
+    expect(seatForPin("2222")).toBe(2);
+    expect(seatForPin("3333")).toBe(3);
+    expect(seatForPin("4444")).toBeNull();
+    expect(seatForPin("")).toBeNull();
+    expect(pinForSeat(3)).toBe("3333");
   });
 
-  it("is disabled when APP_PIN is missing or not numeric", () => {
-    delete process.env.APP_PIN;
-    expect(getAppPin()).toBeNull();
-    expect(pinMatches("1234")).toBe(false);
-    process.env.APP_PIN = "12ab";
-    expect(getAppPin()).toBeNull();
+  it("works with two players and refuses bad configuration", () => {
+    setPins("1111", "2222");
+    expect(getPlayerPins()).toEqual({ pins: [{ seat: 1, pin: "1111" }, { seat: 2, pin: "2222" }], error: null });
+    setPins("1111", "1111", "3333");
+    expect(getPlayerPins().error).toMatch(/different/);
+    setPins("11a1", "2222");
+    expect(getPlayerPins().error).toMatch(/PLAYER_1_PIN/);
+    setPins("1111");
+    expect(getPlayerPins().error).toMatch(/at least/);
+    expect(seatForPin("1111")).toBeNull();
   });
 
-  it("changes the session fingerprint when the PIN changes (signs everyone out)", () => {
-    process.env.APP_PIN = "111111";
-    const before = currentPinFingerprint();
-    process.env.APP_PIN = "222222";
-    expect(currentPinFingerprint()).not.toBe(before);
-    expect(currentPinFingerprint()).toMatch(/^[0-9a-f]{32}$/);
+  it("binds sessions to the user and their current PIN", () => {
+    const a = pinFingerprint("user-1", "1111");
+    expect(a).toMatch(/^[0-9a-f]{32}$/);
+    expect(pinFingerprint("user-1", "9999")).not.toBe(a); // PIN changed → signed out
+    expect(pinFingerprint("user-2", "1111")).not.toBe(a); // can't reuse another player's session
   });
 });
 

@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "eFootball Rivalry Tracker",
     short_name: "Rivalry",
-    description: "Head-to-head eFootball stats for two friends.",
+    description: "Head-to-head eFootball league for friends.",
     start_url: "/",
     scope: "/",
     display: "standalone",

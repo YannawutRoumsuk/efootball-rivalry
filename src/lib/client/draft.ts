@@ -1,31 +1,29 @@
-import type { PlayerPair, ScreenSide } from "@/lib/domain/types";
+import type { ScreenSide } from "@/lib/domain/types";
 import { emptyDraftSide, type DraftSide, type SideInput } from "@/lib/domain/validation";
-
-export type LeftOwner = "me" | "friend";
 
 export interface MatchDraft {
   left: DraftSide;
   right: DraftSide;
-  leftOwner: LeftOwner | null;
+  /** Real player on each screen side — chosen explicitly by the uploader. */
+  leftPlayer: string | null;
+  rightPlayer: string | null;
   playedOn: string | null;
 }
 
 export function emptyDraft(): MatchDraft {
-  return { left: emptyDraftSide(), right: emptyDraftSide(), leftOwner: null, playedOn: null };
+  return { left: emptyDraftSide(), right: emptyDraftSide(), leftPlayer: null, rightPlayer: null, playedOn: null };
 }
 
-/** Resolves "me / my friend on the left" into real player IDs per side. */
-export function resolvePlayers(pair: PlayerPair, myId: string, leftOwner: LeftOwner): Record<ScreenSide, string> {
-  const friendId = pair.a.id === myId ? pair.b.id : pair.a.id;
-  return leftOwner === "me" ? { left: myId, right: friendId } : { left: friendId, right: myId };
+export function playersChosen(d: MatchDraft): boolean {
+  return d.leftPlayer !== null && d.rightPlayer !== null && d.leftPlayer !== d.rightPlayer;
 }
 
-export function toSideInputs(draft: MatchDraft, players: Record<ScreenSide, string>): [SideInput, SideInput] {
+export function toSideInputs(draft: MatchDraft): [SideInput, SideInput] {
   const build = (side: ScreenSide): SideInput => {
     const d = draft[side];
     return {
       ...d,
-      player_id: players[side],
+      player_id: (side === "left" ? draft.leftPlayer : draft.rightPlayer)!,
       screen_side: side,
       goals: d.goals ?? 0,
       onscreen_label: d.onscreen_label?.trim() || null,

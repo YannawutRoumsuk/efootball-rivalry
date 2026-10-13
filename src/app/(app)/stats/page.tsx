@@ -3,37 +3,77 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
+import { PairScope, seatColor } from "@/components/player/seat-scope";
 import { StatsCharts } from "@/components/stats/charts";
+import { PointsRace } from "@/components/stats/points-race";
 import { RangeFilter } from "@/components/stats/range-filter";
 import { Button } from "@/components/ui/button";
-import { toPerspectives } from "@/lib/domain/match";
+import { allPairs, matchesBetween, pairFor, pointsTimeline, resolvePair } from "@/lib/domain/league";
+import { officialMatches, toPerspectives } from "@/lib/domain/match";
 import { summarizeRivalry } from "@/lib/domain/stats";
 import { applyRange, buildTimeline, parseRange } from "@/lib/domain/timeline";
 import { pct } from "@/lib/format";
-import { asUser, getRivalryContext, loadMatches } from "@/lib/server/context";
+import { asUser, requirePageContext, loadMatches } from "@/lib/server/context";
 
 export const metadata = { title: "Advanced statistics" };
 
 export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
   const params = await searchParams;
-  const ctx = (await getRivalryContext())!;
-  const pair = ctx.pair;
-  if (!pair) {
-    return <EmptyState icon={BarChart3} title="No stats yet" description="Invite your friend first — charts appear once matches are saved." />;
+  const ctx = await requirePageContext();
+  const roster = ctx.roster;
+  if (roster.length < 2) {
+    return <EmptyState icon={BarChart3} title="No stats yet" description="At least two players are needed — charts appear once matches are saved." />;
   }
 
   const str = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : undefined);
   const range = parseRange({ range: str("range"), from: str("from"), to: str("to") });
-  const all = toPerspectives(await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id)), pair);
+  const everything = await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id));
+  const [x, y] = resolvePair(str("pair"), roster, everything, ctx.me?.id ?? null)!;
+  const pair = pairFor(roster, x.id, y.id);
+  const all = toPerspectives(matchesBetween(everything, x.id, y.id), pair);
   const { matches, undatedExcluded } = applyRange(all, range);
+  const leagueMatches = officialMatches(everything);
+  const pairHref = (key: string) => {
+    const sp = new URLSearchParams();
+    for (const k of ["range", "from", "to"]) if (str(k)) sp.set(k, str(k)!);
+    sp.set("pair", key);
+    return `/stats?${sp.toString()}`;
+  };
+  const selectedKey = `${pair.seats[0]}-${pair.seats[1]}`;
   const s = summarizeRivalry(matches);
   const points = buildTimeline(matches);
 
   return (
     <div className="space-y-6">
+      {roster.length > 2 && leagueMatches.length > 0 && (
+        <PointsRace points={pointsTimeline(everything, roster)} players={roster.map((p) => ({ seat: p.seat, name: p.display_name }))} />
+      )}
+      {roster.length > 2 && (
+        <nav aria-label="Choose a pair" className="flex flex-wrap gap-2">
+          {allPairs(roster).map(([pa, pb]) => {
+            const key = `${pa.seat}-${pb.seat}`;
+            const active = key === selectedKey;
+            return (
+              <Link
+                key={key}
+                href={pairHref(key)}
+                scroll={false}
+                aria-current={active ? "true" : undefined}
+                className={`flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors ${active ? "border-foreground bg-accent" : "hover:border-foreground/30"}`}
+              >
+                <span style={{ color: seatColor(pa.seat) }}>{pa.display_name}</span>
+                <span className="text-xs font-normal text-muted-foreground">vs</span>
+                <span style={{ color: seatColor(pb.seat) }}>{pb.display_name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+      <PairScope seats={pair.seats}>
+      <div className="space-y-6">
       <PageHeader
         eyebrow="Analytics"
-        title="Advanced statistics"
+        title={roster.length > 2 ? "Head-to-head analytics" : "Advanced statistics"}
         description={
           <>
             {matches.length} confirmed {matches.length === 1 ? "match" : "matches"} in range ·{" "}
@@ -97,6 +137,8 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
           />
         </>
       )}
+      </div>
+      </PairScope>
     </div>
   );
 }

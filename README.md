@@ -1,6 +1,6 @@
 # eFootball Rivalry Tracker
 
-A private, mobile-first head-to-head tracker for exactly two friends. Upload an eFootball **Full Time** screenshot → a vision model extracts the score and stats → you confirm who played on the left → review/correct → save. Both players see the same dashboard update in real time.
+A private, mobile-first eFootball league for a small group of friends (up to three). Every match is 1v1. Upload an eFootball **Full Time** screenshot → a vision model extracts the score and stats → you confirm who played on each side → review/correct → save. Everyone sees the league table and head-to-head stats update in real time.
 
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · shadcn/ui · PostgreSQL (postgres.js) · Recharts · Zod · Gemini via OpenRouter (OpenAI/Anthropic also supported) · PWA. Everything runs on **Railway**: the web service, a Railway Postgres database, and a Railway Volume for screenshots.
 
@@ -16,7 +16,8 @@ A private, mobile-first head-to-head tracker for exactly two friends. Upload an 
 | **Team used** | `match_sides.team_name` | Optional, per match. |
 | **Chronological order** | `matches.match_no` | Editable (reorder / insert historical matches). Upload time is never used as match time. |
 
-* **Login is a shared numeric room code** (`APP_PIN`): enter it, then tap which player you are. The two player seats are created automatically on first login (existing data is reused). Changing `APP_PIN` signs every device out. The underlying schema still caps a rivalry at two members via a Postgres trigger with row locks.
+* **Login is one numeric code per player** (`PLAYER_1_PIN`, `PLAYER_2_PIN`, `PLAYER_3_PIN`): typing your code signs you in as yourself. Player seats are created automatically on first login; existing players and history are reused. Changing one player's code signs only that player out. The group is capped at three members by a Postgres trigger with row locks.
+* **League:** standings (W 3 · D 1 · L 0; tie-breaks GD → GF → wins), a record for every pair, and a cumulative points race. The detailed head-to-head dashboard and the eight analytics charts work for any selected pair. Each seat has its own colour (cyan · magenta · lime).
 * Official stats use **confirmed** matches only. **Disputed** matches are excluded until resolved; **void** matches stay in history but never count. Nothing is hard-deleted; every create/edit/dispute/void/reorder is written to `match_events` with before/after snapshots.
 * **Security model.** The app connects as the database owner, but every user request runs in a transaction that does `SET LOCAL ROLE authenticated` and sets `app.user_id`. Row Level Security, column grants and `auth.uid()` therefore apply to all user data access. Multi-row writes are `SECURITY DEFINER` RPCs that re-check membership. PIN attempts are rate-limited per IP and globally; sessions are random tokens stored only as SHA-256 hashes (bound to the current PIN) in an httpOnly, SameSite=Lax cookie; state-changing API calls must be same-origin.
 * **Realtime.** A trigger on `matches` emits `NOTIFY rivalry_events`; the server keeps one `LISTEN` connection and pushes events to that rivalry's members over Server-Sent Events (`/api/events`). Pages re-render in place.
@@ -29,6 +30,8 @@ A private, mobile-first head-to-head tracker for exactly two friends. Upload an 
 db/migrations/
   20261012000000_platform.sql   roles, auth schema (users, sessions, login attempts), auth.uid()
   20261013000000_init.sql       rivalry schema, constraints, RLS, RPCs, NOTIFY trigger
+  20261014000000_pin_sessions.sql     sessions bound to each player's PIN
+  20261015000000_three_players.sql    group cap 2 → 3; matches need ≥ 2 members
 scripts/
   migrate.mjs                   applies migrations once each (Railway pre-deploy step)
   local-db.mjs                  real local PostgreSQL via embedded-postgres (no Docker)
@@ -58,8 +61,8 @@ tests/
 |---|---|---|
 | `DATABASE_URL` | ✅ | On Railway: `${{Postgres.DATABASE_URL}}` (private network). |
 | `STORAGE_DIR` | ✅ (prod) | Directory on the Railway Volume, e.g. `/data/screenshots`. |
-| `APP_PIN` | ✅ | Numeric room code (4–12 digits) both players enter. Change it to sign everyone out. |
-| `PLAYER_A_NAME`, `PLAYER_B_NAME` | optional | Starting seat names (renameable in the app). |
+| `PLAYER_1_PIN`, `PLAYER_2_PIN`, `PLAYER_3_PIN` | ✅ (3rd optional) | Each player's own numeric code (4–12 digits, all different). |
+| `PLAYER_1_NAME` … `PLAYER_3_NAME` | optional | Starting player names (renameable in the app). |
 | `OPENROUTER_API_KEY` | optional | Enables AI extraction via OpenRouter. Without an AI key the app still works with manual entry. |
 | `OPENROUTER_MODEL` / `OPENROUTER_FALLBACK_MODEL` | optional | Defaults `google/gemini-3.5-flash-lite` / `google/gemini-3.8-flash`. |
 | `AI_PROVIDER`, `OPENAI_*`, `ANTHROPIC_*` | optional | Use OpenAI or Claude instead. |
@@ -95,7 +98,7 @@ The Railway project `efootball-rivalry` contains:
 
 ```bash
 railway up --detach -y --service efootball-rivalry
-railway variables --service efootball-rivalry --set "APP_PIN=123456"
+railway variables --service efootball-rivalry --set "PLAYER_1_PIN=..." --set "PLAYER_2_PIN=..." --set "PLAYER_3_PIN=..."
 railway variables --service efootball-rivalry --set "OPENROUTER_API_KEY=sk-or-..."
 ```
 

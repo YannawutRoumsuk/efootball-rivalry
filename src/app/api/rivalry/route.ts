@@ -5,7 +5,7 @@ import { asUser, requireRivalry, requireUser } from "@/lib/server/context";
 
 const nameSchema = z.object({ name: z.string().trim().min(1, "Give the room a name.").max(60) });
 
-/** Creates a private rivalry room; the creator becomes Player A. */
+/** Creates a private group; the creator takes seat 1. (PIN login provisions this automatically.) */
 export const POST = handle(async (request: Request) => {
   const { rivalry, userId } = await requireUser();
   if (rivalry) throw new ApiError("ALREADY_IN_RIVALRY", "You are already in a rivalry room.", 409);

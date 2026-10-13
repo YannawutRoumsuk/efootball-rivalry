@@ -14,7 +14,7 @@ export const runtime = "nodejs";
  * volume, records hashes and warns about screenshots that were already used.
  */
 export const POST = handle(async (request: Request) => {
-  const { rivalry, userId } = await requireRivalry({ needPair: true });
+  const { rivalry, userId } = await requireRivalry({ needPlayers: true });
 
   // Require a declared length so oversized bodies are rejected before buffering.
   const length = Number(request.headers.get("content-length") ?? NaN);

@@ -4,9 +4,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { sql } from "@/lib/db";
-import { currentPinFingerprint } from "./pin";
-
 import { SESSION_COOKIE_NAME } from "./cookie-name";
+import { pinFingerprint, pinForSeat } from "./pin";
+import { SEAT_ORDER_SQL } from "./players";
 
 export const SESSION_COOKIE = SESSION_COOKIE_NAME;
 const SESSION_DAYS = 30;
@@ -32,12 +32,12 @@ function cookieOptions(expires: Date) {
 }
 
 /** Creates a session row (only the token's hash is stored) and sets the cookie. */
-export async function startSession(userId: string): Promise<void> {
+export async function startSession(userId: string, pinHash: string | null): Promise<void> {
   const token = randomBytes(32).toString("base64url");
   const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
   await sql()`
     insert into auth.sessions (id, user_id, expires_at, pin_hash)
-    values (${hashToken(token)}, ${userId}, ${expires}, ${currentPinFingerprint()})`;
+    values (${hashToken(token)}, ${userId}, ${expires}, ${pinHash})`;
   (await cookies()).set(SESSION_COOKIE, token, cookieOptions(expires));
 }
 
@@ -48,13 +48,6 @@ export async function endSession(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
-/** Signs the user out everywhere except (optionally) the current session. */
-export async function revokeOtherSessions(userId: string): Promise<void> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  const keep = token ? hashToken(token) : "";
-  await sql()`delete from auth.sessions where user_id = ${userId} and id <> ${keep}`;
-}
-
 /** Validates the session cookie against the database (once per request). */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
@@ -62,14 +55,22 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   if (!token || token.length > 100) return null;
 
   const id = hashToken(token);
-  // A session only counts while APP_PIN is unchanged since it was created.
-  const rows = await sql()<Array<{ user_id: string; email: string; expires_at: Date }>>`
-    select s.user_id, u.email, s.expires_at
+  const db = sql();
+  const rows = await db<Array<{ user_id: string; email: string; expires_at: Date; pin_hash: string | null; seat: number | null }>>`
+    select s.user_id, u.email, s.expires_at, s.pin_hash,
+      (select x.seat from (
+         select m.user_id, row_number() over (order by ${db.unsafe(SEAT_ORDER_SQL)})::int as seat
+         from public.rivalry_members m
+         where m.rivalry_id = (select id from public.rivalries order by created_at limit 1)
+       ) x where x.user_id = s.user_id) as seat
     from auth.sessions s join auth.users u on u.id = s.user_id
-    where s.id = ${id} and s.expires_at > now()
-      and s.pin_hash is not distinct from ${currentPinFingerprint()}`;
+    where s.id = ${id} and s.expires_at > now()`;
   const row = rows[0];
   if (!row) return null;
+
+  // A session only counts while that player's PIN is unchanged since sign-in.
+  const pin = pinForSeat(row.seat);
+  if (!pin || row.pin_hash !== pinFingerprint(row.user_id, pin)) return null;
 
   // Sliding expiry: renew long-lived sessions occasionally, not on every request.
   if (row.expires_at.getTime() - Date.now() < RENEW_WHEN_DAYS_LEFT * 86_400_000) {

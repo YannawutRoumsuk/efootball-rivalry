@@ -39,7 +39,7 @@ afterAll(async () => {
 });
 
 describe("rivalry membership", () => {
-  it("has exactly the two members", async () => {
+  it("starts with the two founding members", async () => {
     const rows = await rpc<{ user_id: string; role: string }>(alice, `select user_id, role from rivalry_members order by joined_at`);
     expect(rows).toEqual([
       { user_id: alice, role: "owner" },
@@ -47,19 +47,34 @@ describe("rivalry membership", () => {
     ]);
   });
 
-  it("(12) prevents a third member from joining", async () => {
-    // Inviting is blocked once the room is full…
+  it("(12) allows a third player but never a fourth", async () => {
+    const cara = await t.createUser("cara@example.com", "Cara");
+    const dave = await t.createUser("dave@example.com", "Dave");
+    // Third seat: allowed.
+    await rpc(alice, `select public.create_rivalry_invite($1, 24)`, [hash("CODE-CARA")]);
+    await rpc(cara, `select public.accept_rivalry_invite($1)`, [hash("CODE-CARA")]);
+    const [{ n }] = await rpc<{ n: number }>(alice, `select count(*)::int as n from rivalry_members`);
+    expect(n).toBe(3);
+
+    // Inviting is blocked once the group is full…
     await expect(rpc(alice, `select public.create_rivalry_invite($1, 24)`, [hash("X")])).rejects.toThrow(/RIVALRY_FULL/);
-    // …and even an invite created earlier cannot add a third member.
+    // …an invite created earlier cannot add a fourth member…
     await t.db.query(
       `insert into rivalry_invites (rivalry_id, token_hash, created_by, expires_at) values ($1, $2, $3, now() + interval '1 day')`,
       [rivalryId, hash("LEAKED"), alice],
     );
-    await expect(rpc(carol, `select public.accept_rivalry_invite($1)`, [hash("LEAKED")])).rejects.toThrow(/RIVALRY_FULL/);
-    // The database trigger enforces it even for a privileged direct insert.
+    await expect(rpc(dave, `select public.accept_rivalry_invite($1)`, [hash("LEAKED")])).rejects.toThrow(/RIVALRY_FULL/);
+    // …and the trigger enforces it even for a privileged direct insert.
     await expect(
-      t.db.query(`insert into rivalry_members (rivalry_id, user_id, role) values ($1, $2, 'member')`, [rivalryId, carol]),
+      t.db.query(`insert into rivalry_members (rivalry_id, user_id, role) values ($1, $2, 'member')`, [rivalryId, dave]),
     ).rejects.toThrow(/RIVALRY_FULL/);
+
+    // Any two members can play each other; a non-member still can't appear in a match.
+    const [created] = await rpc<{ match_no: number }>(cara, `select * from public.create_match($1, $2::jsonb)`, [rivalryId, sides(cara, bob, 1, 1)]);
+    expect(created.match_no).toBeGreaterThan(0);
+    await expect(
+      rpc(alice, `select * from public.create_match($1, $2::jsonb)`, [rivalryId, sides(alice, dave, 1, 0)]),
+    ).rejects.toThrow(/PLAYER_NOT_IN_RIVALRY/);
   });
 
   it("rejects reused and expired invites", async () => {
@@ -175,10 +190,11 @@ describe("(14) historical match ordering", () => {
       [rivalryId, sides(bob, alice, 4, 9)],
     );
     expect(inserted.match_no).toBe(1);
-    expect(await order()).toEqual(["1:9", "2:2", "3:7"]);
+    // (#2 is the Cara–Bob match from the three-player test; Alice isn't in it.)
+    expect(await order()).toEqual(["1:9", "3:2", "4:7"]);
 
-    await rpc(alice, `select public.move_match($1, 3)`, [inserted.match_id]);
-    expect(await order()).toEqual(["1:2", "2:7", "3:9"]);
+    await rpc(alice, `select public.move_match($1, 4)`, [inserted.match_id]);
+    expect(await order()).toEqual(["2:2", "3:7", "4:9"]);
 
     const events = await rpc<{ event_type: string }>(alice, `select event_type from match_events where match_id = $1 order by created_at`, [inserted.match_id]);
     expect(events.map((e) => e.event_type)).toEqual(["created", "reordered"]);

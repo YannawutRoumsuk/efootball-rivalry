@@ -16,6 +16,9 @@
   --color-player-a-soft: var(--player-a-soft);
   --color-player-b: var(--player-b);
   --color-player-b-soft: var(--player-b-soft);
+  --color-seat-1: var(--seat-1);
+  --color-seat-2: var(--seat-2);
+  --color-seat-3: var(--seat-3);
   --color-gold: var(--gold);
   --color-draw: var(--draw);
   --color-surface: var(--surface);
@@ -79,10 +82,15 @@
   --popover: oklch(0.2 0.035 262);
   --popover-foreground: var(--foreground);
 
-  --player-a: oklch(0.82 0.15 205);
-  --player-a-soft: oklch(0.82 0.15 205 / 0.14);
-  --player-b: oklch(0.68 0.24 0);
-  --player-b-soft: oklch(0.68 0.24 0 / 0.14);
+  /* One colour per seat. Head-to-head views map --player-a/-b onto two seats. */
+  --seat-1: oklch(0.82 0.15 205);
+  --seat-2: oklch(0.68 0.24 0);
+  --seat-3: oklch(0.86 0.19 128);
+
+  --player-a: var(--seat-1);
+  --player-a-soft: color-mix(in oklch, var(--player-a) 14%, transparent);
+  --player-b: var(--seat-2);
+  --player-b-soft: color-mix(in oklch, var(--player-b) 14%, transparent);
   --gold: oklch(0.86 0.17 88);
   --draw: oklch(0.7 0.03 255);
   --success: oklch(0.78 0.17 152);

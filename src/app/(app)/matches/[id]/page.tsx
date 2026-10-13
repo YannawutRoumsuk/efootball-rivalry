@@ -5,10 +5,12 @@ import { MatchActions } from "@/components/matches/match-actions";
 import { SideBySideStats } from "@/components/matches/side-by-side-stats";
 import { StatusBadge } from "@/components/matches/status-badge";
 import { ScreenshotViewer } from "@/components/upload/screenshot-viewer";
+import { PairScope } from "@/components/player/seat-scope";
+import { pairFor } from "@/lib/domain/league";
 import { sideOnScreen, toPerspective } from "@/lib/domain/match";
 import type { PlayerKey } from "@/lib/domain/types";
 import { formatMatchDate, formatTimestamp } from "@/lib/format";
-import { asUser, getRivalryContext, isUuid, loadMatch } from "@/lib/server/context";
+import { asUser, requirePageContext, isUuid, loadMatch } from "@/lib/server/context";
 import { screenshotUrl } from "@/lib/server/storage";
 import { cn } from "@/lib/utils";
 
@@ -37,9 +39,9 @@ const EVENT_LABEL: Record<string, string> = {
 export default async function MatchDetailPage({ params }: PageProps<"/matches/[id]">) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
-  const ctx = (await getRivalryContext())!;
-  const pair = ctx.pair;
-  if (!pair || !ctx.me) notFound();
+  const ctx = await requirePageContext();
+  if (!ctx.me) notFound();
+  const me = ctx.me;
 
   const data = await asUser(ctx.userId, async (tx) => {
     const match = await loadMatch(tx, id);
@@ -57,16 +59,18 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
   const { match, events } = data;
   const imageUrl = data.upload ? screenshotUrl(data.upload.id) : null;
 
+  const pair = pairFor(ctx.roster, match.sides[0].player_id, match.sides[1].player_id);
   const pm = toPerspective(match, pair);
   const left = sideOnScreen(match, "left");
   const right = sideOnScreen(match, "right");
   const keyOf = (pid: string): PlayerKey => (pid === pair.a.id ? "a" : "b");
   const leftKey = keyOf(left.player_id);
   const rightKey = keyOf(right.player_id);
-  const nameOf = (pid: string | null) => (pid === pair.a.id ? pair.a.display_name : pid === pair.b.id ? pair.b.display_name : "Someone");
+  const nameOf = (pid: string | null) => ctx.roster.find((p) => p.id === pid)?.display_name ?? "Someone";
   const winnerText = pm.winner === "draw" ? "Draw" : `${pair[pm.winner].display_name} won`;
 
   return (
+    <PairScope seats={pair.seats}>
     <div className="space-y-6">
       <Link href="/matches" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" aria-hidden /> Match history
@@ -116,7 +120,7 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
         </div>
       </section>
 
-      <MatchActions match={match} pair={pair} me={ctx.me} maxMatchNo={data.maxNo} />
+      <MatchActions match={match} roster={ctx.roster} meId={me.id} maxMatchNo={data.maxNo} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start">
         <section aria-labelledby="shot-heading" className="space-y-3">
@@ -160,5 +164,6 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
         </ol>
       </section>
     </div>
+    </PairScope>
   );
 }
