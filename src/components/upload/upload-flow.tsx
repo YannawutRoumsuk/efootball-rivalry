@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bot, Check, Keyboard, Loader2, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Info, Keyboard, Loader2, RotateCcw, ScanText } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -14,6 +14,9 @@ import type { DuplicateCandidate } from "@/lib/domain/duplicates";
 import type { RosterPlayer } from "@/lib/domain/league";
 import type { ScreenSide } from "@/lib/domain/types";
 import { hasErrors, validateSides, type DraftSide, type ValidationIssue } from "@/lib/domain/validation";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey, Params } from "@/lib/i18n/core";
+import { errorText } from "@/lib/i18n/errors";
 import { DuplicateWarning } from "./duplicate-warning";
 import { ImagePicker } from "./image-picker";
 import { RecordsCelebration } from "./records-celebration";
@@ -27,24 +30,32 @@ type Phase = "converting" | "uploading" | "extracting";
 interface UploadFlowProps {
   roster: RosterPlayer[];
   meId: string;
-  aiEnabled: boolean;
 }
 
-const STEPS: Array<{ id: Step; label: string }> = [
-  { id: "pick", label: "Upload" },
-  { id: "assign", label: "Sides" },
-  { id: "review", label: "Review" },
-  { id: "done", label: "Saved" },
+/** Kept as keys (not text) so switching language re-renders the note. */
+interface ReadNote {
+  tone: "ok" | "warn";
+  key: MessageKey;
+  params?: Params;
+}
+
+const STEPS: Array<{ id: Step; label: MessageKey }> = [
+  { id: "pick", label: "upload.step.upload" },
+  { id: "assign", label: "upload.step.sides" },
+  { id: "review", label: "upload.step.review" },
+  { id: "done", label: "upload.step.saved" },
 ];
 
-export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
+export function UploadFlow({ roster, meId }: UploadFlowProps) {
+  const t = useT();
   const [step, setStep] = useState<Step>("pick");
   const [phase, setPhase] = useState<Phase>("uploading");
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploadId, setUploadId] = useState<string | null>(null);
   const [draft, setDraft] = useState<MatchDraft>(emptyDraft);
-  const [aiNote, setAiNote] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const [aiNote, setAiNote] = useState<ReadNote | null>(null);
+  const [suggested, setSuggested] = useState(false);
   const [aiIssues, setAiIssues] = useState<ValidationIssue[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([]);
   const [saving, setSaving] = useState(false);
@@ -70,10 +81,8 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
 
   const issues = useMemo(() => {
     const live = validateSides(draft.left, draft.right);
-    // Keep AI "unreadable" notes only while the field is still empty.
-    const stale = aiIssues.filter(
-      (i) => /isn't valid/.test(i.message) && i.side !== "match" && i.field && draft[i.side][i.field] === null,
-    );
+    // Keep "unreadable" notes from the reader only while the field is still empty.
+    const stale = aiIssues.filter((i) => i.code === "unreadable" && i.side !== "match" && i.field && draft[i.side][i.field] === null);
     return [...live, ...stale];
   }, [draft, aiIssues]);
 
@@ -84,6 +93,7 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
     setUploadId(null);
     setDraft(emptyDraft());
     setAiNote(null);
+    setSuggested(false);
     setAiIssues([]);
     setDuplicates([]);
     setSaved(null);
@@ -103,42 +113,37 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
       setDuplicates(up.duplicates);
       if (up.imageUrl) setPreview(up.imageUrl);
 
-      if (!aiEnabled) {
-        setAiNote({ tone: "warn", text: "AI extraction isn't configured — enter the result manually." });
-        setStep("assign");
-        return;
-      }
       setPhase("extracting");
       try {
         const res = await extractUpload(up.uploadId);
-        setDraft((d) => ({ ...d, left: res.left, right: res.right }));
+        const { leftPlayer, rightPlayer } = res.suggested;
+        setDraft((d) => ({
+          ...d,
+          left: res.left,
+          right: res.right,
+          leftPlayer: leftPlayer ?? d.leftPlayer,
+          rightPlayer: rightPlayer ?? d.rightPlayer,
+        }));
+        setSuggested(leftPlayer !== null || rightPlayer !== null);
         setAiIssues(res.issues);
-        const missing = [res.left, res.right].reduce(
-          (n, s) => n + Object.values(s).filter((v) => v === null).length,
-          0,
+        const scoreMissing = res.left.goals === null || res.right.goals === null;
+        setAiNote(
+          res.source === "ocr-partial" || scoreMissing
+            ? { tone: "warn", key: "note.partial" }
+            : { tone: "ok", key: res.source === "ocr" ? "note.ocr" : "note.ai" },
         );
-        setAiNote({
-          tone: missing > 4 || res.left.goals === null || res.right.goals === null ? "warn" : "ok",
-          text:
-            res.left.goals === null || res.right.goals === null
-              ? "AI couldn't read the score — please fill it in."
-              : `AI read the screenshot. ${missing ? `${missing} value(s) were unreadable and left empty.` : "Check every value before saving."}`,
-        });
       } catch (err) {
-        setAiNote({
-          tone: "warn",
-          text: `${err instanceof ApiError ? err.message : "AI extraction failed."} You can enter the stats manually.`,
-        });
+        setAiNote({ tone: "warn", key: "note.failed", params: { msg: errorText(err, t) } });
       }
       setStep("assign");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Upload failed.");
+      toast.error(err instanceof ApiError ? errorText(err, t) : t("upload.failed"));
       reset();
     }
   }
 
   function startManual() {
-    setAiNote({ tone: "warn", text: "Manual entry — no screenshot attached." });
+    setAiNote({ tone: "warn", key: "note.manual" });
     setStep("review");
   }
 
@@ -148,11 +153,11 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
 
   async function save(acknowledge: boolean) {
     if (!chosen) {
-      toast.error("Choose who played on each side first.");
+      toast.error(t("upload.chooseSidesFirst"));
       return;
     }
     if (hasErrors(issues)) {
-      toast.error("Fix the highlighted errors before saving.");
+      toast.error(t("upload.fixErrors"));
       return;
     }
     const payload = { upload_id: uploadId, played_on: draft.playedOn, sides: toSideInputs(draft) };
@@ -174,9 +179,9 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
       }
       setSaved(outcome.result);
       setStep("done");
-      toast.success(`Match #${outcome.result.matchNo} saved`);
+      toast.success(t("upload.saved", { n: outcome.result.matchNo }));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't save the match.");
+      toast.error(err instanceof ApiError ? errorText(err, t) : t("upload.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -186,18 +191,18 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
 
   return (
     <div className="space-y-6">
-      <ol className="flex items-center gap-2" aria-label="Progress">
+      <ol className="flex items-center gap-2" aria-label={t("upload.progress")}>
         {STEPS.map((s, i) => (
           <li key={s.id} className="flex flex-1 items-center gap-2">
             <span
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                i < activeIndex ? "bg-player-a text-primary-foreground" : i === activeIndex ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
+              className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                i < activeIndex ? "bg-success/15 text-success" : i === activeIndex ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
               }`}
               aria-current={i === activeIndex ? "step" : undefined}
             >
               {i < activeIndex ? <Check className="size-3.5" /> : i + 1}
             </span>
-            <span className={`hidden text-sm sm:inline ${i === activeIndex ? "font-semibold" : "text-muted-foreground"}`}>{s.label}</span>
+            <span className={`hidden text-sm sm:inline ${i === activeIndex ? "font-semibold" : "text-muted-foreground"}`}>{t(s.label)}</span>
             {i < STEPS.length - 1 && <span className="h-px flex-1 bg-border" />}
           </li>
         ))}
@@ -208,15 +213,12 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
           <ImagePicker onPick={onPick} />
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
             <button type="button" onClick={startManual} className="inline-flex items-center gap-2 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-              <Keyboard className="size-4" aria-hidden /> Enter a result manually
+              <Keyboard className="size-4" aria-hidden /> {t("upload.manual")}
             </button>
             <Link href="/upload/batch" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-              Import several old screenshots
+              {t("upload.batchLink")}
             </Link>
           </div>
-          {!aiEnabled && (
-            <p className="text-center text-xs text-warning">AI extraction is not configured on this server — screenshots are stored and you enter the stats.</p>
-          )}
         </div>
       )}
 
@@ -224,14 +226,14 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
         <div className="panel flex flex-col items-center gap-5 px-6 py-12 text-center" aria-live="polite">
           {preview && (
             // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
-            <img src={preview} alt="Selected screenshot" className="max-h-56 rounded-xl border object-contain opacity-80" />
+            <img src={preview} alt={t("upload.selected")} className="max-h-56 rounded-xl border object-contain opacity-80" />
           )}
-          <div className="flex items-center gap-2 font-display text-lg font-semibold">
-            {phase === "extracting" ? <Bot className="size-5 animate-pulse text-player-a" /> : <Loader2 className="size-5 animate-spin" />}
-            {phase === "converting" ? "Preparing image…" : phase === "uploading" ? `Uploading… ${progress}%` : "AI is reading the stats…"}
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            {phase === "extracting" ? <ScanText className="size-5 animate-pulse text-muted-foreground" /> : <Loader2 className="size-5 animate-spin" />}
+            {phase === "converting" ? t("upload.preparing") : phase === "uploading" ? t("upload.uploading", { p: progress }) : t("upload.reading")}
           </div>
           {phase === "uploading" && <Progress value={progress} className="h-2 w-full max-w-xs" />}
-          {phase === "extracting" && <p className="max-w-xs text-sm text-muted-foreground">This usually takes 5–20 seconds.</p>}
+          {phase === "extracting" && <p className="max-w-xs text-sm text-muted-foreground">{t("upload.readingHint")}</p>}
         </div>
       )}
 
@@ -241,11 +243,16 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
             {preview ? (
               <ScreenshotViewer src={preview} />
             ) : (
-              <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No screenshot attached</div>
+              <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">{t("upload.noShot")}</div>
             )}
             {aiNote && (
-              <p className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm ${aiNote.tone === "ok" ? "bg-player-a/10 text-player-a" : "bg-warning/10 text-warning"}`}>
-                <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden /> {aiNote.text}
+              <p className={`flex items-start gap-2 rounded-lg px-3 py-2.5 text-sm ${aiNote.tone === "ok" ? "bg-muted text-foreground" : "bg-warning/10 text-warning"}`}>
+                <Info className="mt-0.5 size-4 shrink-0" aria-hidden /> {t(aiNote.key, aiNote.params)}
+              </p>
+            )}
+            {suggested && step === "assign" && (
+              <p className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2.5 text-sm">
+                <Info className="mt-0.5 size-4 shrink-0" aria-hidden /> {t("note.suggested")}
               </p>
             )}
             <DuplicateWarning duplicates={duplicates} />
@@ -257,10 +264,10 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
                 {assign}
                 <div className="flex gap-2">
                   <Button variant="ghost" onClick={reset} className="h-11">
-                    <RotateCcw /> Start over
+                    <RotateCcw /> {t("upload.startOver")}
                   </Button>
                   <Button className="h-11 flex-1" disabled={!chosen} onClick={() => setStep("review")}>
-                    Confirm sides
+                    {t("upload.confirmSides")}
                   </Button>
                 </div>
               </>
@@ -281,20 +288,20 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
                     <DuplicateWarning duplicates={duplicates} />
                     <div className="flex flex-wrap gap-2">
                       <Button variant="outline" className="h-11 flex-1" onClick={() => setStep("review")}>
-                        Back to review
+                        {t("upload.backToReview")}
                       </Button>
                       <Button className="h-11 flex-1" disabled={saving} onClick={() => save(true)}>
-                        {saving && <Loader2 className="animate-spin" />} It&apos;s a different match — save
+                        {saving && <Loader2 className="animate-spin" />} {t("upload.saveAnyway")}
                       </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     <Button variant="ghost" className="h-11" onClick={() => (preview ? setStep("assign") : reset())}>
-                      <ArrowLeft /> Back
+                      <ArrowLeft /> {t("common.back")}
                     </Button>
                     <Button className="h-12 flex-1 text-base" disabled={saving || !chosen || hasErrors(issues)} onClick={() => save(false)}>
-                      {saving && <Loader2 className="animate-spin" />} Confirm &amp; save match
+                      {saving && <Loader2 className="animate-spin" />} {t("upload.save")}
                     </Button>
                   </div>
                 )}
@@ -306,23 +313,23 @@ export function UploadFlow({ roster, meId, aiEnabled }: UploadFlowProps) {
 
       {step === "done" && saved && (
         <div className="panel mx-auto max-w-lg space-y-5 p-6 text-center">
-          <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-success/15">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-success/15">
             <Check className="size-7 text-success" aria-hidden />
           </span>
           <div>
-            <h2 className="font-display text-2xl font-bold">Match #{saved.matchNo} saved</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Everyone sees it on their dashboard right away.</p>
+            <h2 className="text-xl font-semibold">{t("upload.saved", { n: saved.matchNo })}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("upload.savedBody")}</p>
           </div>
           <RecordsCelebration records={saved.records} />
           <div className="flex flex-wrap gap-2">
             <Button className="h-11 flex-1" onClick={reset}>
-              Upload another
+              {t("upload.another")}
             </Button>
             <Button asChild variant="outline" className="h-11 flex-1">
-              <Link href={`/matches/${saved.matchId}`}>View match</Link>
+              <Link href={`/matches/${saved.matchId}`}>{t("upload.viewMatch")}</Link>
             </Button>
             <Button asChild variant="ghost" className="h-11 w-full">
-              <Link href="/">Back to dashboard</Link>
+              <Link href="/">{t("upload.toDashboard")}</Link>
             </Button>
           </div>
         </div>

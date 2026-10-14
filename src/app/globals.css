@@ -7,18 +7,17 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-body), "IBM Plex Sans Thai", system-ui, sans-serif;
-  --font-display: var(--font-display-face), var(--font-body), system-ui, sans-serif;
-  --font-heading: var(--font-display-face), var(--font-body), system-ui, sans-serif;
+  --font-sans: var(--font-body), system-ui, sans-serif;
+  --font-display: var(--font-body), system-ui, sans-serif;
+  --font-heading: var(--font-body), system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --color-player-a: var(--player-a);
-  --color-player-a-soft: var(--player-a-soft);
   --color-player-b: var(--player-b);
-  --color-player-b-soft: var(--player-b-soft);
   --color-seat-1: var(--seat-1);
   --color-seat-2: var(--seat-2);
   --color-seat-3: var(--seat-3);
+  --color-on-seat: var(--on-seat);
   --color-gold: var(--gold);
   --color-draw: var(--draw);
   --color-surface: var(--surface);
@@ -42,72 +41,86 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-chart-1: var(--player-a);
-  --color-chart-2: var(--player-b);
-  --color-chart-3: var(--draw);
-  --color-chart-4: var(--gold);
-  --color-chart-5: var(--success);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-rise: rise 0.6s var(--ease-out-expo) both;
-  --animate-grow-x: grow-x 0.9s var(--ease-out-expo) both;
-
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes grow-x {
-    from { transform: scaleX(0); }
-    to { transform: scaleX(1); }
-  }
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-3xl: calc(var(--radius) * 2);
 }
 
-/* The product is dark-first: a floodlit stadium at night. */
+/*
+ * Calm, low-contrast-chrome palette. Colour is reserved for the players
+ * (one muted hue per seat) and for status; surfaces stay neutral.
+ * Light is the base; .dark overrides.
+ */
 :root {
-  --radius: 0.875rem;
+  --radius: 0.75rem;
 
-  --background: oklch(0.145 0.025 262);
-  --foreground: oklch(0.96 0.01 250);
-  --surface: oklch(0.185 0.03 262);
-  --surface-2: oklch(0.225 0.035 262);
-  --card: oklch(0.18 0.03 262 / 0.82);
+  --background: oklch(0.982 0.003 250);
+  --foreground: oklch(0.24 0.012 260);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.965 0.004 250);
+  --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
-  --popover: oklch(0.2 0.035 262);
+  --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
 
-  /* One colour per seat. Head-to-head views map --player-a/-b onto two seats. */
-  --seat-1: oklch(0.82 0.15 205);
-  --seat-2: oklch(0.68 0.24 0);
-  --seat-3: oklch(0.86 0.19 128);
-
+  --seat-1: oklch(0.55 0.12 245);
+  --seat-2: oklch(0.56 0.16 18);
+  --seat-3: oklch(0.55 0.11 155);
+  --on-seat: oklch(0.99 0 0);
   --player-a: var(--seat-1);
-  --player-a-soft: color-mix(in oklch, var(--player-a) 14%, transparent);
   --player-b: var(--seat-2);
-  --player-b-soft: color-mix(in oklch, var(--player-b) 14%, transparent);
-  --gold: oklch(0.86 0.17 88);
-  --draw: oklch(0.7 0.03 255);
-  --success: oklch(0.78 0.17 152);
-  --warning: oklch(0.82 0.16 75);
 
-  --primary: var(--player-a);
-  --primary-foreground: oklch(0.16 0.03 262);
-  --secondary: oklch(0.25 0.035 262);
+  --gold: oklch(0.68 0.12 75);
+  --draw: oklch(0.58 0.015 260);
+  --success: oklch(0.55 0.12 155);
+  --warning: oklch(0.6 0.13 65);
+  --destructive: oklch(0.56 0.19 25);
+
+  --primary: oklch(0.27 0.014 260);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.955 0.004 250);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.24 0.03 262);
-  --muted-foreground: oklch(0.72 0.03 255);
-  --accent: oklch(0.27 0.04 262);
+  --muted: oklch(0.955 0.004 250);
+  --muted-foreground: oklch(0.5 0.014 260);
+  --accent: oklch(0.945 0.005 250);
   --accent-foreground: var(--foreground);
-  --destructive: oklch(0.68 0.21 25);
-  --border: oklch(0.85 0.03 255 / 0.11);
-  --input: oklch(0.85 0.03 255 / 0.16);
-  --ring: oklch(0.82 0.15 205 / 0.7);
+  --border: oklch(0.905 0.006 250);
+  --input: oklch(0.88 0.007 250);
+  --ring: oklch(0.55 0.12 245 / 0.45);
+}
+
+.dark {
+  --background: oklch(0.175 0.006 260);
+  --foreground: oklch(0.92 0.005 260);
+  --surface: oklch(0.205 0.007 260);
+  --surface-2: oklch(0.235 0.008 260);
+  --card: oklch(0.205 0.007 260);
+  --popover: oklch(0.225 0.008 260);
+
+  --seat-1: oklch(0.72 0.1 240);
+  --seat-2: oklch(0.71 0.13 18);
+  --seat-3: oklch(0.74 0.11 155);
+  --on-seat: oklch(0.18 0.006 260);
+
+  --gold: oklch(0.8 0.11 80);
+  --draw: oklch(0.66 0.012 260);
+  --success: oklch(0.74 0.11 155);
+  --warning: oklch(0.8 0.12 75);
+  --destructive: oklch(0.7 0.16 25);
+
+  --primary: oklch(0.92 0.005 260);
+  --primary-foreground: oklch(0.19 0.006 260);
+  --secondary: oklch(0.25 0.008 260);
+  --muted: oklch(0.25 0.008 260);
+  --muted-foreground: oklch(0.68 0.01 260);
+  --accent: oklch(0.26 0.009 260);
+  --border: oklch(1 0 0 / 0.085);
+  --input: oklch(1 0 0 / 0.13);
+  --ring: oklch(0.72 0.1 240 / 0.5);
 }
 
 @layer base {
@@ -116,18 +129,16 @@
   }
   html {
     @apply font-sans;
-    color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  html:not(.dark) {
+    color-scheme: light;
   }
   body {
     @apply bg-background text-foreground antialiased;
-    background-image:
-      radial-gradient(60rem 30rem at -10% -10%, oklch(0.82 0.15 205 / 0.10), transparent 60%),
-      radial-gradient(50rem 28rem at 110% -5%, oklch(0.68 0.24 0 / 0.10), transparent 60%),
-      linear-gradient(oklch(1 0 0 / 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(1 0 0 / 0.025) 1px, transparent 1px);
-    background-size: auto, auto, 48px 48px, 48px 48px;
-    background-attachment: fixed;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -151,21 +162,16 @@
   .tabular {
     font-variant-numeric: tabular-nums;
   }
-  /* Broadcast-style panel with a hairline highlight on the top edge. */
+  /* Plain card: neutral surface, hairline border, barely-there shadow in light mode. */
   .panel {
-    @apply relative rounded-2xl border bg-card backdrop-blur-md;
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.06),
-      0 20px 40px -24px oklch(0 0 0 / 0.6);
+    @apply relative rounded-xl border bg-card;
+    box-shadow: 0 1px 2px oklch(0.2 0.01 260 / 0.04);
+  }
+  .dark .panel {
+    box-shadow: none;
   }
   .eyebrow {
-    @apply font-display text-[0.7rem] font-semibold tracking-[0.22em] text-muted-foreground uppercase;
-  }
-  .skew-panel-a {
-    clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
-  }
-  .skew-panel-b {
-    clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%);
+    @apply text-xs font-medium text-muted-foreground;
   }
   .pb-safe {
     padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);

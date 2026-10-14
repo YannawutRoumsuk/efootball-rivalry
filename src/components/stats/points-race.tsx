@@ -2,6 +2,7 @@
 
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { PointsPoint } from "@/lib/domain/league";
+import { useT } from "@/lib/i18n/client";
 
 interface PointsRaceProps {
   points: PointsPoint[];
@@ -12,10 +13,11 @@ const seatVar = (seat: number) => `var(--seat-${((seat - 1) % 3) + 1})`;
 
 /** Cumulative league points (3 per win, 1 per draw) for every player. */
 export function PointsRace({ points, players }: PointsRaceProps) {
+  const t = useT();
   return (
     <section className="panel p-4 sm:p-5">
-      <h2 className="font-display text-base font-semibold">League points race</h2>
-      <p className="mb-3 text-xs text-muted-foreground">Cumulative points after each match (totals · W 3, D 1)</p>
+      <h2 className="text-sm font-semibold">{t("chart.points.title")}</h2>
+      <p className="mb-3 text-xs text-muted-foreground">{t("chart.points.sub")}</p>
       <div className="h-60 sm:h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ left: -18, right: 8, top: 4 }}>

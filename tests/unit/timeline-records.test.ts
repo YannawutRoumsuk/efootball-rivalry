@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeInviteCode, generateInviteCode, hashInviteCode } from "@/lib/domain/invite";
+import { createTranslator } from "@/lib/i18n/core";
 import { parseHistoryQuery, queryHistory } from "@/lib/domain/history";
 import { buildInsights } from "@/lib/domain/insights";
 import { toPerspectives } from "@/lib/domain/match";
@@ -65,10 +66,13 @@ describe("insights", () => {
       match(5, 3, 0),
     );
     const s = summarizeRivalry(ms);
-    const text = buildInsights(s, ms, PAIR).map((i) => i.text);
-    expect(text).toContain("KynGian leads the rivalry 4–1 in wins.");
+    const t = createTranslator("en");
+    const text = buildInsights(s, ms, PAIR).map((i) => t(i.key, i.params));
+    expect(text).toContain("KynGian leads this head-to-head 4–1 in wins.");
     expect(text).toContain("KynGian has won 4 of the last 5 matches.");
-    expect(text.some((t) => t.startsWith("Friend has the better shot accuracy"))).toBe(true);
+    expect(text.some((x) => x.startsWith("Friend has the better shot accuracy"))).toBe(true);
+    const thai = createTranslator("th");
+    expect(thai("ins.recent", { name: "KynGian", w: 4, n: 5 })).toBe("KynGian ชนะ 4 จาก 5 นัดหลังสุด");
   });
 
   it("returns nothing for an empty rivalry", () => {

@@ -7,10 +7,11 @@ const STYLES: Record<MatchStatus, string> = {
   void: "border-border bg-muted text-muted-foreground line-through",
 };
 
-export function StatusBadge({ status, className }: { status: MatchStatus; className?: string }) {
+/** `label` is the translated status; the caller owns i18n so this stays usable from client and server code. */
+export function StatusBadge({ status, label, className }: { status: MatchStatus; label: string; className?: string }) {
   return (
-    <span className={cn("rounded-md border px-1.5 py-0.5 text-[0.65rem] font-semibold tracking-wider uppercase", STYLES[status], className)}>
-      {status}
+    <span className={cn("rounded-md border px-1.5 py-0.5 text-xs font-medium", STYLES[status], className)}>
+      {label}
     </span>
   );
 }

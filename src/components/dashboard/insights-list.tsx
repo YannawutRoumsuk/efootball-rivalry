@@ -1,13 +1,16 @@
-import { Sparkles } from "lucide-react";
+"use client";
+
 import type { Insight } from "@/lib/domain/insights";
+import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 export function InsightsList({ insights }: { insights: Insight[] }) {
+  const t = useT();
   if (insights.length === 0) return null;
   return (
     <section aria-labelledby="insights-heading" className="panel p-4 sm:p-6">
-      <h2 id="insights-heading" className="eyebrow mb-3 flex items-center gap-2">
-        <Sparkles className="size-3.5 text-gold" aria-hidden /> Match insights
+      <h2 id="insights-heading" className="mb-3 text-sm font-semibold">
+        {t("insights.title")}
       </h2>
       <ul className="space-y-2.5">
         {insights.map((i) => (
@@ -19,11 +22,11 @@ export function InsightsList({ insights }: { insights: Insight[] }) {
               )}
               aria-hidden
             />
-            {i.text}
+            {t(i.key, i.params)}
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[0.7rem] text-muted-foreground">Calculated from confirmed matches — not AI-generated.</p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("insights.note")}</p>
     </section>
   );
 }

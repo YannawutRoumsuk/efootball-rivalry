@@ -13,16 +13,19 @@ import { officialMatches, toPerspectives } from "@/lib/domain/match";
 import { summarizeRivalry } from "@/lib/domain/stats";
 import { applyRange, buildTimeline, parseRange } from "@/lib/domain/timeline";
 import { pct } from "@/lib/format";
+import { getT } from "@/lib/i18n/server";
 import { asUser, requirePageContext, loadMatches } from "@/lib/server/context";
 
-export const metadata = { title: "Advanced statistics" };
+export async function generateMetadata() {
+  return { title: (await getT())("stats.title") };
+}
 
 export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
   const params = await searchParams;
-  const ctx = await requirePageContext();
+  const [ctx, t] = await Promise.all([requirePageContext(), getT()]);
   const roster = ctx.roster;
   if (roster.length < 2) {
-    return <EmptyState icon={BarChart3} title="No stats yet" description="At least two players are needed — charts appear once matches are saved." />;
+    return <EmptyState icon={BarChart3} title={t("stats.title")} description={t("stats.noPlayers")} />;
   }
 
   const str = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : undefined);
@@ -49,7 +52,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
         <PointsRace points={pointsTimeline(everything, roster)} players={roster.map((p) => ({ seat: p.seat, name: p.display_name }))} />
       )}
       {roster.length > 2 && (
-        <nav aria-label="Choose a pair" className="flex flex-wrap gap-2">
+        <nav aria-label={t("stats.choosePair")} className="flex flex-wrap gap-2">
           {allPairs(roster).map(([pa, pb]) => {
             const key = `${pa.seat}-${pb.seat}`;
             const active = key === selectedKey;
@@ -62,7 +65,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
                 className={`flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors ${active ? "border-foreground bg-accent" : "hover:border-foreground/30"}`}
               >
                 <span style={{ color: seatColor(pa.seat) }}>{pa.display_name}</span>
-                <span className="text-xs font-normal text-muted-foreground">vs</span>
+                <span className="text-xs font-normal text-muted-foreground">{t("common.vs")}</span>
                 <span style={{ color: seatColor(pb.seat) }}>{pb.display_name}</span>
               </Link>
             );
@@ -72,11 +75,11 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
       <PairScope seats={pair.seats}>
       <div className="space-y-6">
       <PageHeader
-        eyebrow="Analytics"
-        title={roster.length > 2 ? "Head-to-head analytics" : "Advanced statistics"}
+        eyebrow={t("stats.eyebrow")}
+        title={t("stats.title")}
         description={
           <>
-            {matches.length} confirmed {matches.length === 1 ? "match" : "matches"} in range ·{" "}
+            {t("stats.inRange", { n: matches.length })} ·{" "}
             <span className="text-player-a">{pair.a.display_name}</span> {s.a.wins}–{s.draws}–{s.b.wins}{" "}
             <span className="text-player-b">{pair.b.display_name}</span>
           </>
@@ -87,18 +90,18 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
       </Suspense>
       {undatedExcluded > 0 && (
         <p className="text-xs text-muted-foreground">
-          {undatedExcluded} {undatedExcluded === 1 ? "match has" : "matches have"} no date and {undatedExcluded === 1 ? "is" : "are"} excluded from date ranges.
+          {t("stats.undated", { n: undatedExcluded })}
         </p>
       )}
 
       {matches.length === 0 ? (
         <EmptyState
           icon={BarChart3}
-          title="Nothing in this range"
-          description="Charts are built from confirmed matches only. Try a wider range or upload a match."
+          title={t("stats.emptyTitle")}
+          description={t("stats.emptyBody")}
           action={
             <Button asChild className="h-11">
-              <Link href="/upload">Upload a match</Link>
+              <Link href="/upload">{t("dash.empty.upload")}</Link>
             </Button>
           }
         />
@@ -106,14 +109,14 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
         <>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "Win rate", a: pct(s.a.winRate), b: pct(s.b.winRate) },
-              { label: "Shot accuracy", a: pct(s.a.shotAccuracy), b: pct(s.b.shotAccuracy) },
-              { label: "Conversion", a: pct(s.a.conversionRate), b: pct(s.b.conversionRate) },
-              { label: "Pass completion", a: pct(s.a.passCompletion), b: pct(s.b.passCompletion) },
+              { label: t("kpi.winRate"), a: pct(s.a.winRate), b: pct(s.b.winRate) },
+              { label: t("cmp.accuracy"), a: pct(s.a.shotAccuracy), b: pct(s.b.shotAccuracy) },
+              { label: t("cmp.conversion"), a: pct(s.a.conversionRate), b: pct(s.b.conversionRate) },
+              { label: t("cmp.passCompletion"), a: pct(s.a.passCompletion), b: pct(s.b.passCompletion) },
             ].map((k) => (
               <div key={k.label} className="panel p-3.5">
                 <dt className="text-xs text-muted-foreground">{k.label}</dt>
-                <dd className="mt-1 flex items-baseline gap-2 font-display text-xl font-bold tabular">
+                <dd className="mt-1 flex items-baseline gap-2 text-lg font-semibold tabular">
                   <span className="text-player-a">{k.a}</span>
                   <span className="text-sm text-muted-foreground">/</span>
                   <span className="text-player-b">{k.b}</span>

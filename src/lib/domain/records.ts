@@ -10,8 +10,8 @@ export type RecordKind =
 
 export interface NewRecord {
   kind: RecordKind;
-  title: string;
-  detail: string;
+  /** Values for the newrec.<kind>.detail translation. */
+  params: Record<string, string | number>;
 }
 
 function maxGoalsByOnePlayer(matches: readonly PerspectiveMatch[]): number {
@@ -47,8 +47,7 @@ export function detectNewRecords(
     const score = w === "a" ? `${newMatch.a.goals}–${newMatch.b.goals}` : `${newMatch.b.goals}–${newMatch.a.goals}`;
     records.push({
       kind: "biggest_win",
-      title: "New biggest victory",
-      detail: `${name(w)} won ${score} (+${margin})`,
+      params: { name: name(w), score, margin },
     });
   }
 
@@ -58,8 +57,7 @@ export function detectNewRecords(
     if (nextStreak[key] > Math.max(prevStreak.a, prevStreak.b) && nextStreak[key] > prevStreak[key]) {
       records.push({
         kind: "longest_streak",
-        title: "New longest winning streak",
-        detail: `${name(key)} — ${nextStreak[key]} wins in a row`,
+        params: { name: name(key), n: nextStreak[key] },
       });
     }
   }
@@ -68,8 +66,7 @@ export function detectNewRecords(
   if (total > maxTotalGoals(before)) {
     records.push({
       kind: "highest_scoring_match",
-      title: "Highest-scoring match ever",
-      detail: `${total} goals in match #${newMatch.match.match_no}`,
+      params: { n: total, no: newMatch.match.match_no },
     });
   }
 
@@ -78,8 +75,7 @@ export function detectNewRecords(
   if (topGoals > maxGoalsByOnePlayer(before)) {
     records.push({
       kind: "most_goals_single_player",
-      title: "Most goals by one player",
-      detail: `${name(topScorer)} scored ${topGoals}`,
+      params: { name: name(topScorer), n: topGoals },
     });
   }
 

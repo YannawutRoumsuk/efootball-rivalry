@@ -1,29 +1,26 @@
 import type { Metadata, Viewport } from "next";
-import { Chakra_Petch, IBM_Plex_Sans_Thai } from "next/font/google";
+import { IBM_Plex_Sans_Thai } from "next/font/google";
+import { cookies } from "next/headers";
+import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getLocale } from "@/lib/i18n/server";
+import { DEFAULT_THEME, isTheme, THEME_COOKIE } from "@/lib/theme";
 import "./globals.css";
-
-const display = Chakra_Petch({
-  variable: "--font-display-face",
-  subsets: ["latin", "thai"],
-  weight: ["500", "600", "700"],
-  display: "swap",
-});
 
 const body = IBM_Plex_Sans_Thai({
   variable: "--font-body",
   subsets: ["latin", "thai"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: { default: "Rivalry Tracker", template: "%s · Rivalry Tracker" },
-  description: "Head-to-head eFootball league for friends — upload a full-time screenshot, AI reads it, the table updates.",
-  applicationName: "Rivalry Tracker",
-  appleWebApp: { capable: true, title: "Rivalry", statusBarStyle: "black-translucent" },
+  title: { default: "Rivalry", template: "%s · Rivalry" },
+  description: "eFootball league for friends — upload a full-time screenshot, the numbers are read automatically, the table updates.",
+  applicationName: "Rivalry",
+  appleWebApp: { capable: true, title: "Rivalry", statusBarStyle: "default" },
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -35,18 +32,27 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b1120",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f8fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#16181d" },
+  ],
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const [locale, store] = await Promise.all([getLocale(), cookies()]);
+  const stored = store.get(THEME_COOKIE)?.value;
+  const theme = isTheme(stored) ? stored : DEFAULT_THEME;
+
   return (
-    <html lang="th" className={`dark ${display.variable} ${body.variable}`} suppressHydrationWarning>
+    <html lang={locale} className={`${theme === "dark" ? "dark" : ""} ${body.variable}`} suppressHydrationWarning>
       <body className="min-h-dvh">
-        <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-        <Toaster position="top-center" richColors closeButton />
+        <I18nProvider locale={locale}>
+          <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+        </I18nProvider>
+        <Toaster position="top-center" closeButton />
         <ServiceWorkerRegistration />
       </body>
     </html>

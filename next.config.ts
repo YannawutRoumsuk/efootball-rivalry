@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // Every screen here is per-user and session-backed, so the classic
   // dynamic-rendering model is a better fit than Cache Components.
   cacheComponents: false,
-  serverExternalPackages: ["sharp"],
+  serverExternalPackages: ["sharp", "tesseract.js"],
   turbopack: {
     rules: {
       "*.css": {

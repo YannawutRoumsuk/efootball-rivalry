@@ -4,7 +4,9 @@ import type { PlayerKey, PlayerPair } from "./types";
 
 export interface Insight {
   id: string;
-  text: string;
+  /** Translation key (ins.*) and parameters. */
+  key: "ins.lead" | "ins.level" | "ins.recent" | "ins.streak" | "ins.accuracy" | "ins.possession" | "ins.cleanSheets" | "ins.goals";
+  params: Record<string, string | number>;
   tone: PlayerKey | "neutral";
 }
 
@@ -29,10 +31,11 @@ export function buildInsights(
     out.push({
       id: "lead",
       tone: lead,
-      text: `${name(lead)} leads the rivalry ${Math.max(a.wins, b.wins)}–${Math.min(a.wins, b.wins)} in wins.`,
+      key: "ins.lead",
+      params: { name: name(lead), w: Math.max(a.wins, b.wins), l: Math.min(a.wins, b.wins) },
     });
   } else {
-    out.push({ id: "lead", tone: "neutral", text: `The rivalry is level at ${a.wins} wins each.` });
+    out.push({ id: "lead", tone: "neutral", key: "ins.level", params: { n: a.wins } });
   }
 
   const window = Math.min(10, matches.length);
@@ -45,7 +48,8 @@ export function buildInsights(
       out.push({
         id: "recent",
         tone: k,
-        text: `${name(k)} has won ${Math.max(winsA, winsB)} of the last ${window} matches.`,
+        key: "ins.recent",
+        params: { name: name(k), w: Math.max(winsA, winsB), n: window },
       });
     }
   }
@@ -55,7 +59,8 @@ export function buildInsights(
     out.push({
       id: "streak",
       tone: streak.holder,
-      text: `${name(streak.holder)} is on a ${streak.length}-match winning streak.`,
+      key: "ins.streak",
+      params: { name: name(streak.holder), n: streak.length },
     });
   }
 
@@ -66,7 +71,8 @@ export function buildInsights(
       out.push({
         id: "accuracy",
         tone: fewer,
-        text: `${name(fewer)} has the better shot accuracy (${fmt(summary[fewer].shotAccuracy!)}% vs ${fmt(summary[other].shotAccuracy!)}%) despite fewer wins.`,
+        key: "ins.accuracy",
+        params: { name: name(fewer), x: fmt(summary[fewer].shotAccuracy!), y: fmt(summary[other].shotAccuracy!) },
       });
     }
   }
@@ -80,7 +86,8 @@ export function buildInsights(
       out.push({
         id: "possession",
         tone: moreBall,
-        text: `${name(moreBall)} averages more possession (${fmt(summary[moreBall].possession.average!)}%), but ${name(moreWins)} wins more often.`,
+        key: "ins.possession",
+        params: { a: name(moreBall), x: fmt(summary[moreBall].possession.average!), b: name(moreWins) },
       });
     }
   }
@@ -90,7 +97,8 @@ export function buildInsights(
     out.push({
       id: "clean-sheets",
       tone: k,
-      text: `${name(k)} has kept ${summary[k].cleanSheets} clean sheet${summary[k].cleanSheets === 1 ? "" : "s"} to ${summary[k === "a" ? "b" : "a"].cleanSheets}.`,
+      key: "ins.cleanSheets",
+      params: { name: name(k), n: summary[k].cleanSheets, m: summary[k === "a" ? "b" : "a"].cleanSheets },
     });
   }
 
@@ -99,7 +107,8 @@ export function buildInsights(
     out.push({
       id: "goals",
       tone: k,
-      text: `${name(k)} scores ${fmt(summary[k].avgGoalsFor!)} goals per match on average.`,
+      key: "ins.goals",
+      params: { name: name(k), x: fmt(summary[k].avgGoalsFor!) },
     });
   }
 

@@ -5,8 +5,10 @@ import { useId } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { seatColor } from "@/components/player/seat-scope";
-import { STAT_KEYS, STAT_LABELS, type ScreenSide, type StatKey } from "@/lib/domain/types";
+import { STAT_KEYS, type ScreenSide, type StatKey } from "@/lib/domain/types";
 import type { DraftSide, ValidationIssue } from "@/lib/domain/validation";
+import { useT } from "@/lib/i18n/client";
+import { issueText } from "@/lib/i18n/issues";
 import { cn } from "@/lib/utils";
 
 export interface SideMeta {
@@ -56,7 +58,7 @@ function NumberCell({
         onChange(raw === "" ? null : Number(raw));
       }}
       className={cn(
-        "tabular font-display font-semibold",
+        "tabular font-semibold",
         big ? "h-16 text-4xl" : "h-11 text-lg",
         align === "left" ? "text-left" : "text-right",
         issue?.severity === "warning" && "border-warning/60",
@@ -66,6 +68,7 @@ function NumberCell({
 }
 
 function IssueList({ issues }: { issues: ValidationIssue[] }) {
+  const t = useT();
   if (issues.length === 0) return null;
   return (
     <ul className="space-y-1.5" aria-live="polite">
@@ -82,7 +85,7 @@ function IssueList({ issues }: { issues: ValidationIssue[] }) {
           ) : (
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           )}
-          <span>{i.message}</span>
+          <span>{issueText(i, t)}</span>
         </li>
       ))}
     </ul>
@@ -92,6 +95,8 @@ function IssueList({ issues }: { issues: ValidationIssue[] }) {
 /** Editable left | stat | right grid that mirrors the eFootball stats screen. */
 export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange, onPlayedOnChange }: StatsEditorProps) {
   const id = useId();
+  const t = useT();
+  const sideName = (side: ScreenSide) => t(side === "left" ? "common.Left" : "common.Right");
   const issueFor = (side: ScreenSide, field: StatKey | "goals") =>
     issues.find((i) => i.side === side && i.field === field && i.severity === "error") ??
     issues.find((i) => i.side === side && i.field === field);
@@ -105,10 +110,11 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
           return (
             <div key={side} className={cn("space-y-2", side === "right" && "text-right")}>
               <p className="eyebrow" style={tone(side)}>
-                {side}{meta[side] ? ` · ${meta[side]!.name}` : ""}
+                {sideName(side)}
+                {meta[side] ? ` · ${meta[side]!.name}` : ""}
               </p>
               <Label htmlFor={`${id}-${side}-label`} className={cn("text-xs text-muted-foreground", side === "right" && "justify-end")}>
-                On-screen label
+                {t("editor.label")}
               </Label>
               <Input
                 id={`${id}-${side}-label`}
@@ -118,13 +124,13 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
                 className={cn("h-11", side === "right" && "text-right")}
               />
               <Label htmlFor={`${id}-${side}-team`} className={cn("text-xs text-muted-foreground", side === "right" && "justify-end")}>
-                Team used (optional)
+                {t("editor.team")}
               </Label>
               <Input
                 id={`${id}-${side}-team`}
                 value={d.team_name ?? ""}
                 maxLength={60}
-                placeholder="e.g. Arsenal"
+                placeholder={t("editor.teamPlaceholder")}
                 onChange={(e) => onSideChange(side, { team_name: e.target.value || null })}
                 className={cn("h-11", side === "right" && "text-right")}
               />
@@ -133,10 +139,10 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
         })}
       </div>
 
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border bg-surface-2/60 p-3">
-        <NumberCell big align="left" label="Left goals" value={left.goals} issue={issueFor("left", "goals")} onChange={(v) => onSideChange("left", { goals: v })} />
-        <span className="font-display text-sm font-semibold tracking-widest text-muted-foreground">FT</span>
-        <NumberCell big align="right" label="Right goals" value={right.goals} issue={issueFor("right", "goals")} onChange={(v) => onSideChange("right", { goals: v })} />
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border bg-surface-2 p-3">
+        <NumberCell big align="left" label={t("editor.sideLabel", { side: sideName("left"), stat: t("stat.goals") })} value={left.goals} issue={issueFor("left", "goals")} onChange={(v) => onSideChange("left", { goals: v })} />
+        <span className="text-sm font-medium text-muted-foreground">{t("editor.ft")}</span>
+        <NumberCell big align="right" label={t("editor.sideLabel", { side: sideName("right"), stat: t("stat.goals") })} value={right.goals} issue={issueFor("right", "goals")} onChange={(v) => onSideChange("right", { goals: v })} />
       </div>
 
       <div className="space-y-1.5">
@@ -144,16 +150,16 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
           <div key={key} className="grid grid-cols-[1fr_minmax(6.5rem,auto)_1fr] items-center gap-2 sm:gap-3">
             <NumberCell
               align="left"
-              label={`Left ${STAT_LABELS[key]}`}
+              label={t("editor.sideLabel", { side: sideName("left"), stat: t(`stat.${key}`) })}
               decimal={key === "possession_pct"}
               value={left[key]}
               issue={issueFor("left", key)}
               onChange={(v) => onSideChange("left", { [key]: v })}
             />
-            <span className="text-center text-xs leading-tight text-muted-foreground sm:text-sm">{STAT_LABELS[key]}</span>
+            <span className="text-center text-xs leading-tight text-muted-foreground sm:text-sm">{t(`stat.${key}`)}</span>
             <NumberCell
               align="right"
-              label={`Right ${STAT_LABELS[key]}`}
+              label={t("editor.sideLabel", { side: sideName("right"), stat: t(`stat.${key}`) })}
               decimal={key === "possession_pct"}
               value={right[key]}
               issue={issueFor("right", key)}
@@ -164,7 +170,7 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${id}-date`}>Match date (optional)</Label>
+        <Label htmlFor={`${id}-date`}>{t("editor.date")}</Label>
         <Input
           id={`${id}-date`}
           type="date"
@@ -173,7 +179,7 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
           onChange={(e) => onPlayedOnChange(e.target.value || null)}
           className="h-11"
         />
-        <p className="text-xs text-muted-foreground">Leave empty if unknown — upload time is never used as the match date.</p>
+        <p className="text-xs text-muted-foreground">{t("editor.dateHint")}</p>
       </div>
 
       <IssueList issues={issues} />

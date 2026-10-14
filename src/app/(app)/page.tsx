@@ -16,13 +16,16 @@ import { computeStandings, matchesBetween, pairFor, pairRecords, resolvePair } f
 import { toPerspectives } from "@/lib/domain/match";
 import type { PlayerKey } from "@/lib/domain/types";
 import { recentForm, summarizeRivalry } from "@/lib/domain/stats";
+import { getT } from "@/lib/i18n/server";
 import { asUser, requirePageContext, loadMatches } from "@/lib/server/context";
 
-export const metadata = { title: "Dashboard" };
+export async function generateMetadata() {
+  return { title: (await getT())("dash.title") };
+}
 
 export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const params = await searchParams;
-  const ctx = await requirePageContext();
+  const [ctx, t] = await Promise.all([requirePageContext(), getT()]);
   const rivalry = ctx.rivalry!;
   const roster = ctx.roster;
 
@@ -30,8 +33,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
     return (
       <EmptyState
         icon={UserPlus}
-        title="Player seats are being set up"
-        description="Set PLAYER_1_PIN and PLAYER_2_PIN (and PLAYER_3_PIN) on the server, then sign in again."
+        title={t("dash.noSeats.title")}
+        description={t("dash.noSeats.body")}
       />
     );
   }
@@ -62,20 +65,20 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
         )}
         <EmptyState
           icon={Camera}
-          title="Kick-off: no matches yet"
-          description="Upload your first eFootball full-time screenshot. AI reads the score and stats, you confirm who played on which side, and the rivalry begins."
+          title={t("dash.empty.title")}
+          description={t("dash.empty.body")}
           action={
             <>
               <Button asChild size="lg" className="h-11 px-5">
-                <Link href="/upload">Upload a match</Link>
+                <Link href="/upload">{t("dash.empty.upload")}</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-11 px-5">
-                <Link href="/upload/batch">Import history</Link>
+                <Link href="/upload/batch">{t("dash.empty.import")}</Link>
               </Button>
             </>
           }
         />
-        {disputed > 0 && <DisputedNotice count={disputed} />}
+        {disputed > 0 && <DisputedNotice text={t("dash.disputed", { n: disputed })} />}
       </div>
     );
   }
@@ -83,42 +86,40 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="space-y-5 sm:space-y-6">
       {league}
-      {disputed > 0 && <DisputedNotice count={disputed} />}
+      {disputed > 0 && <DisputedNotice text={t("dash.disputed", { n: disputed })} />}
       <PairScope seats={pair.seats}>
-      <div id="h2h" className="space-y-5 sm:space-y-6">
-      <HeroScoreboard pair={pair} summary={summary} me={me} />
-      {matches.length === 0 && (
-        <p className="panel px-4 py-6 text-center text-sm text-muted-foreground">
-          {pair.a.display_name} and {pair.b.display_name} haven&apos;t played each other yet.
-        </p>
-      )}
-      <div className="grid gap-5 sm:gap-6 lg:grid-cols-5">
-        <div className="space-y-5 sm:space-y-6 lg:col-span-2">
-          <WinDistribution summary={summary} pair={pair} />
-          <RecentForm pair={pair} form={{ a: recentForm(matches, "a", 10), b: recentForm(matches, "b", 10) }} />
-          <InsightsList insights={buildInsights(summary, matches, pair)} />
+        <div id="h2h" className="space-y-5 sm:space-y-6">
+          <HeroScoreboard pair={pair} summary={summary} me={me} />
+          {matches.length === 0 && (
+            <p className="panel px-4 py-6 text-center text-sm text-muted-foreground">
+              {t("dash.notPlayed", { a: pair.a.display_name, b: pair.b.display_name })}
+            </p>
+          )}
+          <div className="grid gap-5 sm:gap-6 lg:grid-cols-5">
+            <div className="space-y-5 sm:space-y-6 lg:col-span-2">
+              <WinDistribution summary={summary} pair={pair} />
+              <RecentForm pair={pair} form={{ a: recentForm(matches, "a", 10), b: recentForm(matches, "b", 10) }} />
+              <InsightsList insights={buildInsights(summary, matches, pair)} />
+            </div>
+            <div className="lg:col-span-3">
+              <StatComparison summary={summary} pair={pair} />
+            </div>
+          </div>
+          <Highlights summary={summary} pair={pair} />
         </div>
-        <div className="lg:col-span-3">
-          <StatComparison summary={summary} pair={pair} />
-        </div>
-      </div>
-      <Highlights summary={summary} pair={pair} />
-      </div>
       </PairScope>
     </div>
   );
 }
 
-function DisputedNotice({ count }: { count: number }) {
+function DisputedNotice({ text }: { text: string }) {
   return (
     <Link
       href="/matches"
-      className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/15"
+      className="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/15"
     >
       <AlertTriangle className="size-4 shrink-0 text-warning" aria-hidden />
-      <span>
-        {count} disputed {count === 1 ? "match is" : "matches are"} excluded from official stats until resolved.
-      </span>
+      <span>{text}</span>
     </Link>
   );
 }

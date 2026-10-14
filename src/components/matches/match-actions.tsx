@@ -16,6 +16,8 @@ import { playersChosen, toSideInputs, type MatchDraft } from "@/lib/client/draft
 import type { RosterPlayer } from "@/lib/domain/league";
 import type { Match, ScreenSide } from "@/lib/domain/types";
 import { hasErrors, validateSides, type DraftSide } from "@/lib/domain/validation";
+import { useT } from "@/lib/i18n/client";
+import { errorText } from "@/lib/i18n/errors";
 
 type Action = "dispute" | "resolve" | "void" | "restore";
 
@@ -36,6 +38,7 @@ function toDraftSide(m: Match, side: ScreenSide): DraftSide {
 
 export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsProps) {
   const router = useRouter();
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [statusAction, setStatusAction] = useState<Action | null>(null);
   const [note, setNote] = useState("");
@@ -65,7 +68,7 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
       setNote("");
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Action failed.");
+      toast.error(err instanceof ApiError ? errorText(err, t) : t("act.failed"));
     } finally {
       setBusy(false);
     }
@@ -74,7 +77,7 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
   const submitStatus = () =>
     run(
       () => apiFetch(`/api/matches/${match.id}/status`, { method: "POST", body: JSON.stringify({ action: statusAction, note: note || null }) }),
-      { dispute: "Match flagged as disputed", resolve: "Dispute resolved", void: "Match voided", restore: "Match restored" }[statusAction!],
+      t(`act.done.${statusAction!}`),
     );
 
   const submitEdit = () => {
@@ -84,56 +87,57 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
           method: "PATCH",
           body: JSON.stringify({ played_on: draft.playedOn, sides: toSideInputs(draft), note: editNote || null }),
         }),
-      "Match corrected",
+      t("act.done.edit"),
     );
   };
 
   const submitMove = () =>
     run(
       () => apiFetch(`/api/matches/${match.id}/move`, { method: "POST", body: JSON.stringify({ match_no: Number(position) }) }),
-      "Match order updated",
+      t("act.done.move"),
     );
 
   const metaFor = (id: string | null) => {
     const p = roster.find((r) => r.id === id);
     return p ? { name: p.display_name, seat: p.seat } : null;
   };
-  const statusCopy: Record<Action, { title: string; body: string; needsNote: boolean; cta: string }> = {
-    dispute: { title: "Report a mistake", body: "Disputed matches are excluded from official stats until resolved.", needsNote: true, cta: "Flag as disputed" },
-    resolve: { title: "Resolve dispute", body: "The match counts toward official stats again.", needsNote: false, cta: "Mark resolved" },
-    void: { title: "Void this match", body: "Voided matches stay in history (with an audit trail) but never count.", needsNote: true, cta: "Void match" },
-    restore: { title: "Restore match", body: "The match becomes confirmed again.", needsNote: false, cta: "Restore" },
-  };
+  const needsNote: Record<Action, boolean> = { dispute: true, resolve: false, void: true, restore: false };
+  const statusCopy = (a: Action) => ({
+    title: t(`act.${a}.title`),
+    body: t(`act.${a}.body`),
+    needsNote: needsNote[a],
+    cta: t(`act.${a}.cta`),
+  });
 
   return (
     <>
       <div className="flex flex-wrap gap-2">
         {match.status !== "void" && (
           <Button variant="outline" className="h-10" onClick={() => { setDraft(initialDraft()); setEditing(true); }}>
-            <Pencil /> Correct
+            <Pencil /> {t("act.correct")}
           </Button>
         )}
         {match.status === "confirmed" && (
           <Button variant="outline" className="h-10 text-warning" onClick={() => setStatusAction("dispute")}>
-            <Flag /> Dispute
+            <Flag /> {t("act.dispute")}
           </Button>
         )}
         {match.status === "disputed" && (
           <Button variant="outline" className="h-10 text-success" onClick={() => setStatusAction("resolve")}>
-            <ShieldCheck /> Resolve
+            <ShieldCheck /> {t("act.resolve")}
           </Button>
         )}
         {match.status !== "void" ? (
           <Button variant="ghost" className="h-10 text-destructive" onClick={() => setStatusAction("void")}>
-            <Ban /> Void
+            <Ban /> {t("act.void")}
           </Button>
         ) : (
           <Button variant="outline" className="h-10" onClick={() => setStatusAction("restore")}>
-            <RotateCcw /> Restore
+            <RotateCcw /> {t("act.restore")}
           </Button>
         )}
         <Button variant="ghost" className="h-10" onClick={() => setMoving(true)}>
-          <ArrowUpDown /> Reorder
+          <ArrowUpDown /> {t("act.reorder")}
         </Button>
       </div>
 
@@ -141,19 +145,21 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
         {statusAction && (
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{statusCopy[statusAction].title}</DialogTitle>
-              <DialogDescription>{statusCopy[statusAction].body}</DialogDescription>
+              <DialogTitle>{statusCopy(statusAction).title}</DialogTitle>
+              <DialogDescription>{statusCopy(statusAction).body}</DialogDescription>
             </DialogHeader>
-            {statusCopy[statusAction].needsNote && (
+            {needsNote[statusAction] && (
               <div className="space-y-2">
-                <Label htmlFor="status-note">Reason</Label>
-                <Textarea id="status-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder="e.g. Score was actually 2–3" />
+                <Label htmlFor="status-note">{t("act.reason")}</Label>
+                <Textarea id="status-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder={t("act.reasonPlaceholder")} />
               </div>
             )}
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setStatusAction(null)}>Cancel</Button>
-              <Button disabled={busy || (statusCopy[statusAction].needsNote && !note.trim())} onClick={submitStatus}>
-                {busy && <Loader2 className="animate-spin" />} {statusCopy[statusAction].cta}
+              <Button variant="ghost" onClick={() => setStatusAction(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button disabled={busy || (needsNote[statusAction] && !note.trim())} onClick={submitStatus}>
+                {busy && <Loader2 className="animate-spin" />} {statusCopy(statusAction).cta}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -163,17 +169,19 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
       <Dialog open={moving} onOpenChange={setMoving}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change match order</DialogTitle>
-            <DialogDescription>Streaks and timelines follow this order. Other matches shift to make room.</DialogDescription>
+            <DialogTitle>{t("act.moveTitle")}</DialogTitle>
+            <DialogDescription>{t("act.moveBody")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="position">Position (1 – {maxMatchNo})</Label>
+            <Label htmlFor="position">{t("act.position", { max: maxMatchNo })}</Label>
             <Input id="position" type="number" inputMode="numeric" min={1} max={maxMatchNo} value={position} onChange={(e) => setPosition(e.target.value)} className="h-11" />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setMoving(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setMoving(false)}>
+              {t("common.cancel")}
+            </Button>
             <Button disabled={busy || !Number(position)} onClick={submitMove}>
-              {busy && <Loader2 className="animate-spin" />} Move to #{position || "?"}
+              {busy && <Loader2 className="animate-spin" />} {t("act.moveCta", { n: position || "?" })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -182,8 +190,8 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Correct match #{match.match_no}</DialogTitle>
-            <DialogDescription>Every change is recorded in the match history with before/after values.</DialogDescription>
+            <DialogTitle>{t("act.editTitle", { n: match.match_no })}</DialogTitle>
+            <DialogDescription>{t("act.editBody")}</DialogDescription>
           </DialogHeader>
           <SideAssign
             left={draft.left}
@@ -204,13 +212,15 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
             onPlayedOnChange={(v) => setDraft((d) => ({ ...d, playedOn: v }))}
           />
           <div className="space-y-2">
-            <Label htmlFor="edit-note">What changed? (optional)</Label>
+            <Label htmlFor="edit-note">{t("act.editNote")}</Label>
             <Input id="edit-note" value={editNote} onChange={(e) => setEditNote(e.target.value)} maxLength={500} className="h-11" />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              {t("common.cancel")}
+            </Button>
             <Button disabled={busy || !playersChosen(draft) || hasErrors(issues)} onClick={submitEdit}>
-              {busy && <Loader2 className="animate-spin" />} Save correction
+              {busy && <Loader2 className="animate-spin" />} {t("act.saveCorrection")}
             </Button>
           </DialogFooter>
         </DialogContent>

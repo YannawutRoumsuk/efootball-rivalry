@@ -15,6 +15,8 @@ import { prepareImageFile, uploadScreenshot } from "@/lib/client/upload";
 import type { DuplicateCandidate } from "@/lib/domain/duplicates";
 import type { RosterPlayer } from "@/lib/domain/league";
 import { hasErrors, validateSides } from "@/lib/domain/validation";
+import { useT } from "@/lib/i18n/client";
+import { errorText } from "@/lib/i18n/errors";
 import { cn } from "@/lib/utils";
 import { DuplicateWarning } from "./duplicate-warning";
 import { StatsEditor } from "./stats-editor";
@@ -37,7 +39,8 @@ interface Item {
 
 const MAX_FILES = 30;
 
-export function BatchImport({ roster, meId, aiEnabled }: { roster: RosterPlayer[]; meId: string; aiEnabled: boolean }) {
+export function BatchImport({ roster, meId }: { roster: RosterPlayer[]; meId: string }) {
+  const t = useT();
   const [items, setItems] = useState<Item[]>([]);
   const [insertBefore, setInsertBefore] = useState("");
   const [importing, setImporting] = useState(false);
@@ -51,25 +54,33 @@ export function BatchImport({ roster, meId, aiEnabled }: { roster: RosterPlayer[
       const prepared = await prepareImageFile(file);
       const up = await uploadScreenshot(prepared, () => undefined);
       patch(item.key, { uploadId: up.uploadId, duplicates: up.duplicates });
-      if (!aiEnabled) {
-        patch(item.key, { status: "ready", message: "AI not configured — enter stats manually.", open: true });
-        return;
-      }
       try {
         const res = await extractUpload(up.uploadId);
-        patch(item.key, (i) => ({ status: "ready", draft: { ...i.draft, left: res.left, right: res.right }, message: null }));
+        const partial = res.source === "ocr-partial" || res.left.goals === null || res.right.goals === null;
+        patch(item.key, (i) => ({
+          status: "ready",
+          draft: {
+            ...i.draft,
+            left: res.left,
+            right: res.right,
+            leftPlayer: res.suggested.leftPlayer ?? i.draft.leftPlayer,
+            rightPlayer: res.suggested.rightPlayer ?? i.draft.rightPlayer,
+          },
+          open: partial,
+          message: partial ? t("note.partial") : null,
+        }));
       } catch (err) {
-        patch(item.key, { status: "ready", open: true, message: `${err instanceof ApiError ? err.message : "AI failed"} — enter manually.` });
+        patch(item.key, { status: "ready", open: true, message: t("note.failed", { msg: errorText(err, t) }) });
       }
     } catch (err) {
-      patch(item.key, { status: "error", message: err instanceof ApiError ? err.message : "Upload failed." });
+      patch(item.key, { status: "error", message: err instanceof ApiError ? errorText(err, t) : t("upload.failed") });
     }
   }
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return;
     const list = [...files].slice(0, MAX_FILES - items.length);
-    if (files.length > list.length) toast.warning(`Only ${MAX_FILES} screenshots per batch.`);
+    if (files.length > list.length) toast.warning(t("batch.max", { n: MAX_FILES }));
     const created = list.map<Item>((f) => ({
       key: crypto.randomUUID(),
       name: f.name,
@@ -83,7 +94,7 @@ export function BatchImport({ roster, meId, aiEnabled }: { roster: RosterPlayer[
       open: false,
     }));
     setItems((cur) => [...cur, ...created]);
-    // Two at a time keeps phones responsive and respects AI rate limits.
+    // Two at a time keeps phones responsive and the server OCR queue short.
     let next = 0;
     const worker = async () => {
       while (next < created.length) {
@@ -126,29 +137,29 @@ export function BatchImport({ roster, meId, aiEnabled }: { roster: RosterPlayer[
           item.acknowledged,
         );
         if (outcome.kind === "duplicate") {
-          patch(item.key, { status: "duplicate", duplicates: outcome.duplicates, open: true, message: "Possible duplicate — confirm to import." });
+          patch(item.key, { status: "duplicate", duplicates: outcome.duplicates, open: true, message: t("batch.dupNote") });
           continue;
         }
         saved += 1;
         if (position !== null) position += 1;
         patch(item.key, { status: "saved", savedNo: outcome.result.matchNo, message: null, open: false });
       } catch (err) {
-        patch(item.key, { status: "ready", message: err instanceof ApiError ? err.message : "Save failed." });
+        patch(item.key, { status: "ready", message: err instanceof ApiError ? errorText(err, t) : t("upload.saveFailed") });
       }
     }
     setImporting(false);
-    if (saved) toast.success(`Imported ${saved} ${saved === 1 ? "match" : "matches"}`);
+    if (saved) toast.success(t("batch.imported", { n: saved }));
   }
 
   return (
     <div className="space-y-5">
       <div className="panel flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center">
         <div className="flex-1">
-          <p className="font-display font-semibold">Add historical screenshots</p>
-          <p className="text-sm text-muted-foreground">Order the queue oldest → newest. Each match still needs both players confirmed.</p>
+          <p className="font-semibold">{t("batch.add")}</p>
+          <p className="text-sm text-muted-foreground">{t("batch.addBody")}</p>
         </div>
         <Button className="h-11" onClick={() => picker.current?.click()} disabled={items.length >= MAX_FILES}>
-          <Images /> Choose screenshots
+          <Images /> {t("batch.choose")}
         </Button>
         <input
           ref={picker}
@@ -185,19 +196,21 @@ export function BatchImport({ roster, meId, aiEnabled }: { roster: RosterPlayer[
 
           <div className="panel sticky bottom-24 z-10 flex flex-col gap-3 p-4 sm:flex-row sm:items-end md:bottom-4">
             <div className="space-y-1">
-              <Label htmlFor="insert-before" className="text-xs text-muted-foreground">Insert before match # (empty = append)</Label>
+              <Label htmlFor="insert-before" className="text-xs text-muted-foreground">
+                {t("batch.insertBefore")}
+              </Label>
               <Input id="insert-before" type="number" inputMode="numeric" min={1} value={insertBefore} onChange={(e) => setInsertBefore(e.target.value)} className="h-10 w-40" />
             </div>
             <p className="flex-1 text-sm text-muted-foreground">
-              {readyCount} of {pending.length} ready
+              {t("batch.ready", { r: readyCount, n: pending.length })}
             </p>
             <Button className="h-11" disabled={importing || readyCount === 0} onClick={importAll}>
-              {importing && <Loader2 className="animate-spin" />} Import {readyCount} {readyCount === 1 ? "match" : "matches"}
+              {importing && <Loader2 className="animate-spin" />} {t("batch.import", { n: readyCount })}
             </Button>
           </div>
           {items.some((i) => i.status === "saved") && (
             <Link href="/matches" className="block text-center text-sm text-muted-foreground underline underline-offset-4">
-              View match history
+              {t("batch.viewHistory")}
             </Link>
           )}
         </>
@@ -216,6 +229,7 @@ function BatchRow({ item, index, total, roster, meId, onPatch, onMove, onRemove 
   onMove: (dir: -1 | 1) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
   const d = item.draft;
   const issues = validateSides(d.left, d.right);
   const metaFor = (id: string | null) => {
@@ -239,16 +253,16 @@ function BatchRow({ item, index, total, roster, meId, onPatch, onMove, onRemove 
         <img src={item.preview} alt="" className="h-14 w-24 shrink-0 rounded-lg border object-cover" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-muted-foreground">#{index + 1} · {item.name}</p>
-          <p className="font-display text-xl font-bold tabular">
+          <p className="text-lg font-semibold tabular">
             {item.status === "processing" ? <Loader2 className="size-4 animate-spin" /> : `${d.left.goals ?? "?"} – ${d.right.goals ?? "?"}`}
           </p>
-          {item.status === "saved" && <p className="text-xs text-success">Saved as match #{item.savedNo}</p>}
+          {item.status === "saved" && <p className="text-xs text-success">{t("batch.savedAs", { n: item.savedNo ?? "?" })}</p>}
           {item.message && <p className={cn("text-xs", item.status === "error" ? "text-destructive" : "text-warning")}>{item.message}</p>}
         </div>
         <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
-          <Button size="icon-sm" variant="ghost" aria-label="Move up" disabled={index === 0 || locked} onClick={() => onMove(-1)}><ArrowUp /></Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Move down" disabled={index === total - 1 || locked} onClick={() => onMove(1)}><ArrowDown /></Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Remove" disabled={item.status === "saving" || item.status === "saved"} onClick={onRemove}><Trash2 /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label={t("batch.moveUp")} disabled={index === 0 || locked} onClick={() => onMove(-1)}><ArrowUp /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label={t("batch.moveDown")} disabled={index === total - 1 || locked} onClick={() => onMove(1)}><ArrowDown /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label={t("batch.remove")} disabled={item.status === "saving" || item.status === "saved"} onClick={onRemove}><Trash2 /></Button>
         </div>
       </div>
 
@@ -256,7 +270,7 @@ function BatchRow({ item, index, total, roster, meId, onPatch, onMove, onRemove 
         <div className="mt-3 space-y-3">
           {(["leftPlayer", "rightPlayer"] as const).map((side) => (
             <div key={side} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="w-12 text-muted-foreground">{side === "leftPlayer" ? "Left:" : "Right:"}</span>
+              <span className="w-12 text-muted-foreground">{t(side === "leftPlayer" ? "common.Left" : "common.Right")}</span>
               {roster.map((p) => {
                 const selected = d[side] === p.id;
                 return (
@@ -269,21 +283,21 @@ function BatchRow({ item, index, total, roster, meId, onPatch, onMove, onRemove 
                     className={cn("h-9 rounded-lg border-2 px-3 font-medium", !selected && "border-border text-muted-foreground")}
                   >
                     {p.display_name}
-                    {p.id === meId ? " (you)" : ""}
+                    {p.id === meId ? ` (${t("common.you")})` : ""}
                   </button>
                 );
               })}
             </div>
           ))}
           <button type="button" onClick={() => onPatch({ open: !item.open })} className="inline-flex h-9 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            Review stats <ChevronDown className={cn("size-4 transition-transform", item.open && "rotate-180")} />
+            {t("batch.review")} <ChevronDown className={cn("size-4 transition-transform", item.open && "rotate-180")} />
           </button>
           {item.status === "duplicate" && (
             <div className="space-y-2">
               <DuplicateWarning duplicates={item.duplicates} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" className="size-4" checked={item.acknowledged} onChange={(e) => onPatch({ acknowledged: e.target.checked })} />
-                This is a different match — import it anyway
+                {t("batch.differentMatch")}
               </label>
             </div>
           )}

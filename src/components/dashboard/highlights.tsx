@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerKey, PlayerPair } from "@/lib/domain/types";
 import { pct } from "@/lib/format";
+import type { Translate } from "@/lib/i18n/core";
+import { getT } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 
 interface Card {
@@ -16,7 +18,7 @@ interface Card {
   featured?: boolean;
 }
 
-function cards(s: RivalrySummary, pair: PlayerPair): Card[] {
+function cards(s: RivalrySummary, pair: PlayerPair, t: Translate): Card[] {
   const name = (k: PlayerKey) => pair[k].display_name;
   const out: Card[] = [];
 
@@ -24,10 +26,10 @@ function cards(s: RivalrySummary, pair: PlayerPair): Card[] {
     out.push({
       id: "biggest-win",
       icon: Trophy,
-      title: "Biggest win",
+      title: t("rec.biggestWin"),
       value: `${s.biggestWin.goalsFor}–${s.biggestWin.goalsAgainst}`,
       who: s.biggestWin.winner,
-      caption: `${name(s.biggestWin.winner)} · match #${s.biggestWin.matchNo}`,
+      caption: `${name(s.biggestWin.winner)} · ${t("rec.matchNo", { n: s.biggestWin.matchNo })}`,
       matchId: s.biggestWin.matchId,
       featured: true,
     });
@@ -37,42 +39,42 @@ function cards(s: RivalrySummary, pair: PlayerPair): Card[] {
     .filter((x): x is NonNullable<typeof x> => Boolean(x))
     .sort((x, y) => y.goals - x.goals || x.matchNo - y.matchNo)[0];
   if (mg && mg.goals > 0) {
-    out.push({ id: "most-goals", icon: Goal, title: "Most goals in a match", value: String(mg.goals), who: mg.k, caption: `${name(mg.k)} · match #${mg.matchNo}`, matchId: mg.matchId });
+    out.push({ id: "most-goals", icon: Goal, title: t("rec.mostGoals"), value: String(mg.goals), who: mg.k, caption: `${name(mg.k)} · ${t("rec.matchNo", { n: mg.matchNo })}`, matchId: mg.matchId });
   }
 
   const ls: PlayerKey | null = s.a.longestWinStreak === s.b.longestWinStreak ? null : s.a.longestWinStreak > s.b.longestWinStreak ? "a" : "b";
   const lsValue = Math.max(s.a.longestWinStreak, s.b.longestWinStreak);
   if (lsValue > 0) {
-    out.push({ id: "longest-streak", icon: TrendingUp, title: "Longest winning streak", value: `${lsValue}`, who: ls, caption: ls ? name(ls) : "Shared record" });
+    out.push({ id: "longest-streak", icon: TrendingUp, title: t("rec.longestStreak"), value: `${lsValue}`, who: ls, caption: ls ? name(ls) : t("rec.shared") });
   }
 
   out.push({
     id: "current-streak",
     icon: Flame,
-    title: "Current streak",
+    title: t("rec.currentStreak"),
     value: s.currentStreak.holder ? `${s.currentStreak.length}` : "—",
     who: s.currentStreak.holder,
-    caption: s.currentStreak.holder ? `${name(s.currentStreak.holder)} winning` : "No active streak",
+    caption: s.currentStreak.holder ? t("rec.winning", { name: name(s.currentStreak.holder) }) : t("rec.noStreak"),
   });
 
   const cs: PlayerKey | null = s.a.cleanSheets === s.b.cleanSheets ? null : s.a.cleanSheets > s.b.cleanSheets ? "a" : "b";
   out.push({
     id: "clean-sheets",
     icon: ShieldCheck,
-    title: "Most clean sheets",
+    title: t("rec.cleanSheets"),
     value: `${Math.max(s.a.cleanSheets, s.b.cleanSheets)}`,
     who: cs,
-    caption: cs ? `${name(cs)} · ${s.a.cleanSheets}–${s.b.cleanSheets}` : `Level · ${s.a.cleanSheets} each`,
+    caption: cs ? `${name(cs)} · ${s.a.cleanSheets}–${s.b.cleanSheets}` : t("rec.level", { n: s.a.cleanSheets }),
   });
 
   if (s.highestScoringMatch) {
     out.push({
       id: "highest-scoring",
       icon: Zap,
-      title: "Highest-scoring match",
+      title: t("rec.highestScoring"),
       value: `${s.highestScoringMatch.totalGoals}`,
       who: null,
-      caption: `${s.highestScoringMatch.goalsA}–${s.highestScoringMatch.goalsB} · match #${s.highestScoringMatch.matchNo}`,
+      caption: `${s.highestScoringMatch.goalsA}–${s.highestScoringMatch.goalsB} · ${t("rec.matchNo", { n: s.highestScoringMatch.matchNo })}`,
       matchId: s.highestScoringMatch.matchId,
     });
   }
@@ -83,10 +85,10 @@ function cards(s: RivalrySummary, pair: PlayerPair): Card[] {
     out.push({
       id: "largest-gd",
       icon: Swords,
-      title: "Largest goal difference",
+      title: t("rec.largestGd"),
       value: `+${Math.max(gdA, gdB)}`,
       who: gdA === gdB ? null : gdA > gdB ? "a" : "b",
-      caption: `Best margins: ${name("a")} +${gdA} · ${name("b")} +${gdB}`,
+      caption: t("rec.margins", { a: name("a"), x: gdA, b: name("b"), y: gdB }),
     });
   }
 
@@ -97,7 +99,7 @@ function cards(s: RivalrySummary, pair: PlayerPair): Card[] {
     out.push({
       id: "best-accuracy",
       icon: Crosshair,
-      title: "Best shot accuracy",
+      title: t("rec.bestAccuracy"),
       value: pct(acc.accuracy),
       who: acc.k,
       caption: `${name(acc.k)} · ${acc.onTarget}/${acc.shots} · #${acc.matchNo}`,
@@ -107,35 +109,36 @@ function cards(s: RivalrySummary, pair: PlayerPair): Card[] {
   return out;
 }
 
-export function Highlights({ summary, pair }: { summary: RivalrySummary; pair: PlayerPair }) {
-  const list = cards(summary, pair);
+export async function Highlights({ summary, pair }: { summary: RivalrySummary; pair: PlayerPair }) {
+  const t = await getT();
+  const list = cards(summary, pair, t);
   return (
     <section aria-labelledby="records-heading">
-      <h2 id="records-heading" className="eyebrow mb-3">Rivalry records</h2>
+      <h2 id="records-heading" className="mb-3 text-sm font-semibold">
+        {t("rec.title")}
+      </h2>
       <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {list.map((c, i) => {
+        {list.map((c) => {
           const tone = c.who === "a" ? "text-player-a" : c.who === "b" ? "text-player-b" : "text-gold";
           const body = (
             <div
               className={cn(
                 "panel group h-full p-4 transition-colors",
                 c.matchId && "hover:border-foreground/20",
-                c.featured && "bg-gradient-to-br from-gold/12 via-card to-card",
               )}
-              style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="flex items-start justify-between gap-2">
                 <p className="text-xs leading-snug font-medium text-muted-foreground">{c.title}</p>
                 <c.icon className={cn("size-4 shrink-0", c.featured ? "text-gold" : tone)} aria-hidden />
               </div>
-              <p className={cn("mt-2 font-display text-3xl font-bold tabular", tone)}>{c.value}</p>
+              <p className={cn("mt-2 text-2xl font-semibold tabular sm:text-3xl", tone)}>{c.value}</p>
               <p className="mt-1 truncate text-xs text-muted-foreground">{c.caption}</p>
             </div>
           );
           return (
-            <li key={c.id} className="animate-rise" style={{ animationDelay: `${i * 40}ms` }}>
+            <li key={c.id}>
               {c.matchId ? (
-                <Link href={`/matches/${c.matchId}`} className="block h-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                <Link href={`/matches/${c.matchId}`} className="block h-full rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                   {body}
                 </Link>
               ) : (

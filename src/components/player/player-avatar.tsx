@@ -26,12 +26,12 @@ function initials(name: string): string {
 export function PlayerAvatar({ name, avatarUrl, playerKey, size = "md", className }: PlayerAvatarProps) {
   const style =
     playerKey === "a"
-      ? "ring-player-a/70 from-player-a/35 to-player-a/5 text-player-a"
-      : "ring-player-b/70 from-player-b/35 to-player-b/5 text-player-b";
+      ? "bg-player-a/15 text-player-a"
+      : "bg-player-b/15 text-player-b";
   return (
     <span
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br font-display font-bold ring-2 ring-offset-2 ring-offset-background",
+        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold",
         SIZES[size],
         style,
         className,

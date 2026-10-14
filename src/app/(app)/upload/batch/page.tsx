@@ -1,23 +1,25 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { BatchImport } from "@/components/upload/batch-import";
-import { getAiConfig } from "@/lib/env";
+import { getT } from "@/lib/i18n/server";
 import { requirePageContext } from "@/lib/server/context";
 
-export const metadata = { title: "Batch import" };
+export async function generateMetadata() {
+  return { title: (await getT())("batch.title") };
+}
 
 export default async function BatchImportPage() {
-  const ctx = await requirePageContext();
+  const [ctx, t] = await Promise.all([requirePageContext(), getT()]);
   if (ctx.roster.length < 2 || !ctx.me) redirect("/upload");
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="History"
-        title="Batch import"
-        description="Upload old screenshots together. Each one is read separately, then you confirm sides, reorder, and import."
+        eyebrow={t("batch.eyebrow")}
+        title={t("batch.title")}
+        description={t("batch.desc")}
       />
-      <BatchImport roster={ctx.roster} meId={ctx.me.id} aiEnabled={getAiConfig() !== null} />
+      <BatchImport roster={ctx.roster} meId={ctx.me.id} />
     </div>
   );
 }

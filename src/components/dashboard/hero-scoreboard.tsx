@@ -2,92 +2,96 @@ import { Flame } from "lucide-react";
 import { PlayerAvatar } from "@/components/player/player-avatar";
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerKey, PlayerPair } from "@/lib/domain/types";
+import type { Translate } from "@/lib/i18n/core";
+import { getT } from "@/lib/i18n/server";
 import { pct, signed } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+type SeatedPair = PlayerPair & { seats?: [number, number] };
+
 interface HeroScoreboardProps {
-  pair: PlayerPair & { seats?: [number, number] };
+  pair: SeatedPair;
   summary: RivalrySummary;
   me: PlayerKey | null;
 }
 
-function PlayerBlock({ pair, k, summary, me }: { pair: PlayerPair & { seats?: [number, number] }; k: PlayerKey; summary: RivalrySummary; me: PlayerKey | null }) {
+interface PlayerBlockProps extends HeroScoreboardProps {
+  k: PlayerKey;
+  t: Translate;
+}
+
+function PlayerBlock({ pair, k, summary, me, t }: PlayerBlockProps) {
   const p = pair[k];
   const s = summary[k];
   const right = k === "b";
+  const stats = [
+    { label: t("hero.winPct"), value: pct(s.winRate) },
+    { label: t("hero.goals"), value: s.goalsFor },
+    { label: t("hero.gd"), value: signed(s.goalDifference) },
+  ];
   return (
     <div className={cn("flex min-w-0 flex-col gap-3", right ? "items-end text-right" : "items-start")}>
       <div className={cn("flex min-w-0 items-center gap-3", right && "flex-row-reverse")}>
         <PlayerAvatar name={p.display_name} avatarUrl={p.avatar_url} playerKey={k} size="lg" className="max-sm:size-12 max-sm:text-base" />
         <div className="min-w-0">
-          <p className={cn("eyebrow", k === "a" ? "text-player-a" : "text-player-b")}>
-            Player {pair.seats ? pair.seats[k === "a" ? 0 : 1] : k.toUpperCase()}
-            {me === k && <span className="text-muted-foreground"> · You</span>}
+          <p className="eyebrow">
+            {t("common.player", { n: pair.seats ? pair.seats[k === "a" ? 0 : 1] : k.toUpperCase() })}
+            {me === k && ` · ${t("common.you")}`}
           </p>
-          <p className="truncate font-display text-lg font-bold sm:text-2xl">{p.display_name}</p>
+          <p className="truncate text-lg font-semibold sm:text-2xl">{p.display_name}</p>
         </div>
       </div>
       <dl className={cn("grid grid-cols-3 gap-x-4 gap-y-1 text-sm sm:gap-x-6", right && "text-right")}>
-        <div>
-          <dt className="text-[0.65rem] tracking-wider text-muted-foreground uppercase">Win%</dt>
-          <dd className="font-display text-base font-semibold tabular sm:text-xl">{pct(s.winRate)}</dd>
-        </div>
-        <div>
-          <dt className="text-[0.65rem] tracking-wider text-muted-foreground uppercase">Goals</dt>
-          <dd className="font-display text-base font-semibold tabular sm:text-xl">{s.goalsFor}</dd>
-        </div>
-        <div>
-          <dt className="text-[0.65rem] tracking-wider text-muted-foreground uppercase">GD</dt>
-          <dd className="font-display text-base font-semibold tabular sm:text-xl">{signed(s.goalDifference)}</dd>
-        </div>
+        {stats.map((stat) => (
+          <div key={stat.label}>
+            <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+            <dd className="text-base font-semibold tabular sm:text-lg">{stat.value}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   );
 }
 
-/** Broadcast-style head-to-head scoreboard. */
-export function HeroScoreboard({ pair, summary, me }: HeroScoreboardProps) {
+/** Head-to-head scoreboard for the selected pair. */
+export async function HeroScoreboard({ pair, summary, me }: HeroScoreboardProps) {
+  const t = await getT();
   const { a, b, draws, totalMatches, currentStreak } = summary;
   const leader: PlayerKey | null = a.wins === b.wins ? null : a.wins > b.wins ? "a" : "b";
 
   return (
-    <section aria-labelledby="h2h-heading" className="panel animate-rise overflow-hidden">
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-player-a/18 to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-player-b/18 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-player-a via-transparent to-player-b" />
-
-      <div className="relative px-4 pt-5 pb-6 sm:px-8 sm:pt-7">
+    <section aria-labelledby="h2h-heading" className="panel overflow-hidden">
+      <div className="flex h-1" aria-hidden>
+        <span className="flex-1 bg-player-a" />
+        <span className="flex-1 bg-player-b" />
+      </div>
+      <div className="px-4 pt-4 pb-6 sm:px-8 sm:pt-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 id="h2h-heading" className="eyebrow">Head to head</h2>
-          <p className="eyebrow tabular">
-            {totalMatches} {totalMatches === 1 ? "match" : "matches"}
-          </p>
+          <h2 id="h2h-heading" className="text-sm font-semibold">
+            {t("hero.title")}
+          </h2>
+          <p className="eyebrow tabular">{totalMatches === 1 ? t("common.matchCountOne") : t("common.matchCount", { n: totalMatches })}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-8">
-          <PlayerBlock pair={pair} k="a" summary={summary} me={me} />
+          <PlayerBlock pair={pair} k="a" summary={summary} me={me} t={t} />
 
-          <div className="order-first col-span-2 flex items-end justify-center gap-3 sm:order-none sm:col-span-1 sm:gap-5">
-            <ScoreNumber value={a.wins} label="Wins" k="a" dim={leader === "b"} />
+          <div className="order-first col-span-2 flex items-end justify-center gap-4 sm:order-none sm:col-span-1 sm:gap-6">
+            <ScoreNumber value={a.wins} label={t("hero.wins")} k="a" dim={leader === "b"} />
             <div className="flex flex-col items-center pb-1">
-              <span className="font-display text-3xl font-bold text-draw tabular sm:text-4xl">{draws}</span>
-              <span className="text-[0.65rem] tracking-[0.2em] text-muted-foreground uppercase">Draws</span>
+              <span className="text-3xl font-semibold text-draw tabular sm:text-4xl">{draws}</span>
+              <span className="text-xs text-muted-foreground">{t("hero.draws")}</span>
             </div>
-            <ScoreNumber value={b.wins} label="Wins" k="b" dim={leader === "a"} />
+            <ScoreNumber value={b.wins} label={t("hero.wins")} k="b" dim={leader === "a"} />
           </div>
 
-          <PlayerBlock pair={pair} k="b" summary={summary} me={me} />
+          <PlayerBlock pair={pair} k="b" summary={summary} me={me} t={t} />
         </div>
 
         {currentStreak.holder && currentStreak.length >= 2 && (
-          <p className="mt-5 flex items-center justify-center gap-2 text-sm">
+          <p className="mt-5 flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Flame className={cn("size-4", currentStreak.holder === "a" ? "text-player-a" : "text-player-b")} aria-hidden />
-            <span>
-              <strong className={currentStreak.holder === "a" ? "text-player-a" : "text-player-b"}>
-                {pair[currentStreak.holder].display_name}
-              </strong>{" "}
-              is on a {currentStreak.length}-match winning streak
-            </span>
+            {t("hero.streak", { name: pair[currentStreak.holder].display_name, n: currentStreak.length })}
           </p>
         )}
       </div>
@@ -100,15 +104,14 @@ function ScoreNumber({ value, label, k, dim }: { value: number; label: string; k
     <div className="flex flex-col items-center">
       <span
         className={cn(
-          "font-display text-7xl leading-none font-bold tabular transition-opacity sm:text-8xl",
+          "text-6xl leading-none font-bold tabular sm:text-7xl",
           k === "a" ? "text-player-a" : "text-player-b",
-          dim && "opacity-55",
+          dim && "opacity-60",
         )}
-        style={{ textShadow: `0 0 40px var(--player-${k})` }}
       >
         {value}
       </span>
-      <span className="mt-1 text-[0.65rem] tracking-[0.2em] text-muted-foreground uppercase">{label}</span>
+      <span className="mt-1 text-xs text-muted-foreground">{label}</span>
     </div>
   );
 }

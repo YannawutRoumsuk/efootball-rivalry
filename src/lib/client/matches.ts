@@ -47,7 +47,13 @@ export async function saveMatch(payload: SavePayload, acknowledgeDuplicates: boo
   }
 }
 
-export type ExtractResponse = Pick<ExtractionResult, "left" | "right" | "issues"> & { provider: string };
+export type ExtractSource = "ocr" | "ai" | "ocr-partial";
+
+export type ExtractResponse = Pick<ExtractionResult, "left" | "right" | "issues"> & {
+  source: ExtractSource;
+  /** Players recognised from on-screen names seen in earlier matches (still confirmed by the user). */
+  suggested: { leftPlayer: string | null; rightPlayer: string | null };
+};
 
 export function extractUpload(uploadId: string): Promise<ExtractResponse> {
   return apiFetch<ExtractResponse>(`/api/uploads/${uploadId}/extract`, { method: "POST" });

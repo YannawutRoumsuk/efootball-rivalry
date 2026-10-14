@@ -74,6 +74,8 @@ function sanitizeSide(side: ScreenSide, raw: RawAiSide, issues: ValidationIssue[
         severity: "warning",
         side,
         field: key,
+        code: "unreadable",
+        params: { value: String(value) },
         message: `${side === "left" ? "Left" : "Right"} ${key.replaceAll("_", " ")} was read as "${String(value)}", which isn't valid. Please enter it manually.`,
       });
       return;
@@ -103,7 +105,7 @@ export function sanitizeExtraction(raw: unknown): ExtractionResult {
   for (const issue of validateSides(left, right)) {
     // A missing score from the model is a warning here; the form makes it an error.
     issues.push(issue.field === "goals" && issue.severity === "error"
-      ? { ...issue, severity: "warning", message: issue.message.replace("is required", "couldn't be read") }
+      ? { ...issue, severity: "warning", code: "unreadableGoals", message: issue.message.replace("is required", "couldn't be read") }
       : issue);
   }
   return { left, right, issues };

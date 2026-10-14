@@ -6,12 +6,15 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiFetch, ApiError } from "@/lib/api/envelope";
+import { apiFetch } from "@/lib/api/envelope";
+import { useT } from "@/lib/i18n/client";
+import { errorText } from "@/lib/i18n/errors";
 import { safeNextPath } from "@/lib/safe-redirect";
 
 /** Each player types their own numeric code and is signed in as themselves. */
 export function LoginForm({ next, initialError }: { next: string | null; initialError?: string | null }) {
   const router = useRouter();
+  const t = useT();
   const [pin, setPin] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -25,7 +28,7 @@ export function LoginForm({ next, initialError }: { next: string | null; initial
       router.replace(safeNextPath(next));
       router.refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong.");
+      setError(errorText(err, t));
       setPin("");
       setPending(false);
     }
@@ -34,7 +37,7 @@ export function LoginForm({ next, initialError }: { next: string | null; initial
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="pin">Your player code</Label>
+        <Label htmlFor="pin">{t("login.code")}</Label>
         <Input
           id="pin"
           type="password"
@@ -46,7 +49,7 @@ export function LoginForm({ next, initialError }: { next: string | null; initial
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
           required
-          className="h-14 text-center font-display text-3xl tracking-[0.5em]"
+          className="h-14 text-center text-2xl tracking-[0.5em]"
         />
       </div>
       {error && (
@@ -55,7 +58,7 @@ export function LoginForm({ next, initialError }: { next: string | null; initial
         </p>
       )}
       <Button type="submit" disabled={pending || pin.length < 4} className="h-12 w-full text-base">
-        {pending && <Loader2 className="animate-spin" />} Enter
+        {pending && <Loader2 className="animate-spin" />} {t("login.enter")}
       </Button>
     </form>
   );

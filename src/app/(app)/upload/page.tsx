@@ -4,22 +4,24 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { UploadFlow } from "@/components/upload/upload-flow";
-import { getAiConfig } from "@/lib/env";
+import { getT } from "@/lib/i18n/server";
 import { requirePageContext } from "@/lib/server/context";
 
-export const metadata = { title: "Upload match" };
+export async function generateMetadata() {
+  return { title: (await getT())("upload.title") };
+}
 
 export default async function UploadPage() {
-  const ctx = await requirePageContext();
+  const [ctx, t] = await Promise.all([requirePageContext(), getT()]);
   if (ctx.roster.length < 2 || !ctx.me) {
     return (
       <EmptyState
         icon={UserPlus}
-        title="Not enough players yet"
-        description="Matches need at least two players. Set PLAYER_1_PIN and PLAYER_2_PIN on the server."
+        title={t("upload.notEnough.title")}
+        description={t("upload.notEnough.body")}
         action={
           <Button asChild className="h-11">
-            <Link href="/settings">Open room settings</Link>
+            <Link href="/settings">{t("upload.notEnough.cta")}</Link>
           </Button>
         }
       />
@@ -28,8 +30,8 @@ export default async function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="New result" title="Upload match" description="Screenshot → AI reads it → you confirm who played and the numbers → saved for everyone." />
-      <UploadFlow roster={ctx.roster} meId={ctx.me.id} aiEnabled={getAiConfig() !== null} />
+      <PageHeader eyebrow={t("upload.eyebrow")} title={t("upload.title")} description={t("upload.desc")} />
+      <UploadFlow roster={ctx.roster} meId={ctx.me.id} />
     </div>
   );
 }

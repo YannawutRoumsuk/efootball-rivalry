@@ -36,10 +36,24 @@ export type DraftSide = {
   goals: number | null;
 } & { [K in StatKey]: number | null };
 
+export type IssueCode =
+  | "required"
+  | "unreadableGoals"
+  | "range"
+  | "unusual"
+  | "sotGtShots"
+  | "succGtPasses"
+  | "goalsGtSot"
+  | "possessionTotal"
+  | "unreadable";
+
 export interface ValidationIssue {
   severity: "error" | "warning";
   side: ScreenSide | "match";
   field?: StatKey | "goals";
+  /** Translation key suffix (issue.<code>) and its parameters; `message` is the English fallback. */
+  code: IssueCode;
+  params?: Record<string, string | number>;
   message: string;
 }
 
@@ -71,7 +85,7 @@ function validateOneSide(side: ScreenSide, s: DraftSide): ValidationIssue[] {
   const label = side === "left" ? "Left" : "Right";
 
   if (s.goals === null) {
-    issues.push({ severity: "error", side, field: "goals", message: `${label} score is required.` });
+    issues.push({ severity: "error", side, field: "goals", code: "required", message: `${label} score is required.` });
   }
 
   for (const key of ["goals", ...STAT_KEYS] as const) {
@@ -83,6 +97,8 @@ function validateOneSide(side: ScreenSide, s: DraftSide): ValidationIssue[] {
         severity: "error",
         side,
         field: key,
+        code: "range",
+        params: { max: STAT_LIMITS[key] },
         message: `${label} ${key.replaceAll("_", " ")} must be ${integer ? "a whole number" : "a number"} between 0 and ${STAT_LIMITS[key]}.`,
       });
       continue;
@@ -93,6 +109,8 @@ function validateOneSide(side: ScreenSide, s: DraftSide): ValidationIssue[] {
         severity: "warning",
         side,
         field: key,
+        code: "unusual",
+        params: { value: v },
         message: `${label} ${key.replaceAll("_", " ")} (${v}) is unusually high — please double-check.`,
       });
     }
@@ -103,6 +121,8 @@ function validateOneSide(side: ScreenSide, s: DraftSide): ValidationIssue[] {
       severity: "error",
       side,
       field: "shots_on_target",
+      code: "sotGtShots",
+      params: { sot: s.shots_on_target, shots: s.shots },
       message: `${label}: shots on target (${s.shots_on_target}) cannot exceed total shots (${s.shots}).`,
     });
   }
@@ -111,6 +131,8 @@ function validateOneSide(side: ScreenSide, s: DraftSide): ValidationIssue[] {
       severity: "error",
       side,
       field: "successful_passes",
+      code: "succGtPasses",
+      params: { succ: s.successful_passes, passes: s.passes },
       message: `${label}: successful passes (${s.successful_passes}) cannot exceed passes (${s.passes}).`,
     });
   }
@@ -119,6 +141,7 @@ function validateOneSide(side: ScreenSide, s: DraftSide): ValidationIssue[] {
       severity: "warning",
       side,
       field: "goals",
+      code: "goalsGtSot",
       message: `${label} scored more goals than shots on target — fine for own goals, otherwise check the numbers.`,
     });
   }
@@ -135,6 +158,8 @@ export function validateSides(left: DraftSide, right: DraftSide): ValidationIssu
       severity: "warning",
       side: "match",
       field: "possession_pct",
+      code: "possessionTotal",
+      params: { total: pl + pr },
       message: `Possession adds up to ${pl + pr}% instead of 100%.`,
     });
   }

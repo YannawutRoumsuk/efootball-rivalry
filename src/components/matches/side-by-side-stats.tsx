@@ -1,4 +1,5 @@
-import { STAT_KEYS, STAT_LABELS, type MatchSide, type PlayerKey } from "@/lib/domain/types";
+import { STAT_KEYS, type MatchSide, type PlayerKey } from "@/lib/domain/types";
+import { getT } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -12,7 +13,8 @@ const tone = (k: PlayerKey) => (k === "a" ? "bg-player-a" : "bg-player-b");
 const text = (k: PlayerKey) => (k === "a" ? "text-player-a" : "text-player-b");
 
 /** Full-time stats laid out exactly like the in-game screen: left | stat | right. */
-export function SideBySideStats({ left, right, leftKey, rightKey }: Props) {
+export async function SideBySideStats({ left, right, leftKey, rightKey }: Props) {
+  const t = await getT();
   return (
     <dl className="divide-y">
       {STAT_KEYS.map((key) => {
@@ -24,11 +26,11 @@ export function SideBySideStats({ left, right, leftKey, rightKey }: Props) {
         return (
           <div key={key} className="py-2.5">
             <div className="grid grid-cols-[3.5rem_1fr_3.5rem] items-center gap-2">
-              <dd className={cn("font-display text-lg font-semibold tabular", l !== null && r !== null && l > r && text(leftKey))}>
+              <dd className={cn("text-base font-semibold tabular", l !== null && r !== null && l > r && text(leftKey))}>
                 {l === null ? "—" : `${l}${suffix}`}
               </dd>
-              <dt className="text-center text-xs text-muted-foreground sm:text-sm">{STAT_LABELS[key]}</dt>
-              <dd className={cn("text-right font-display text-lg font-semibold tabular", l !== null && r !== null && r > l && text(rightKey))}>
+              <dt className="text-center text-xs text-muted-foreground sm:text-sm">{t(`stat.${key}`)}</dt>
+              <dd className={cn("text-right text-base font-semibold tabular", l !== null && r !== null && r > l && text(rightKey))}>
                 {r === null ? "—" : `${r}${suffix}`}
               </dd>
             </div>

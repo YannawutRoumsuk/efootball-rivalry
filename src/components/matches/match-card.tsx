@@ -5,6 +5,7 @@ import { pairFor, type Roster } from "@/lib/domain/league";
 import { toPerspective } from "@/lib/domain/match";
 import type { Match, PlayerKey, PlayerPair } from "@/lib/domain/types";
 import { formatMatchDate } from "@/lib/format";
+import { getLocale, getT } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "./status-badge";
 
@@ -22,8 +23,8 @@ function SideLine({ pair, k, goals, label, team, won, align }: {
     <div className={cn("flex min-w-0 items-center gap-3", align === "right" && "flex-row-reverse text-right")}>
       <span
         className={cn(
-          "font-display text-4xl leading-none font-bold tabular",
-          won ? (k === "a" ? "text-player-a" : "text-player-b") : "text-foreground/45",
+          "text-3xl leading-none font-semibold tabular",
+          won ? (k === "a" ? "text-player-a" : "text-player-b") : "text-muted-foreground",
         )}
       >
         {goals}
@@ -39,11 +40,12 @@ function SideLine({ pair, k, goals, label, team, won, align }: {
 }
 
 /** One match, players in seat order and in their own colours. */
-export function MatchCard({ match, roster }: { match: Match; roster: Roster }) {
+export async function MatchCard({ match, roster }: { match: Match; roster: Roster }) {
+  const [t, locale] = await Promise.all([getT(), getLocale()]);
   const pair = pairFor(roster, match.sides[0].player_id, match.sides[1].player_id);
   const pm = toPerspective(match, pair);
   const uploader = roster.find((p) => p.id === match.created_by)?.display_name ?? "—";
-  const date = formatMatchDate(match.played_at);
+  const date = formatMatchDate(match.played_at, locale);
 
   return (
     <Link
@@ -55,26 +57,26 @@ export function MatchCard({ match, roster }: { match: Match; roster: Roster }) {
       )}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <span className="font-display text-xs font-bold tracking-[0.2em] text-muted-foreground">MATCH #{match.match_no}</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("card.match", { n: match.match_no })}</span>
         <div className="flex items-center gap-2">
-          {pm.winner === "draw" && <span className="text-xs font-semibold text-draw">DRAW</span>}
-          <StatusBadge status={match.status} />
+          {pm.winner === "draw" && <span className="text-xs font-medium text-draw">{t("card.draw")}</span>}
+          <StatusBadge status={match.status} label={t(`status.${match.status}`)} />
         </div>
       </div>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <SideLine pair={pair} k="a" goals={pm.a.goals} label={pm.a.onscreen_label} team={pm.a.team_name} won={pm.winner === "a"} align="left" />
-        <span className="text-xs text-muted-foreground">vs</span>
+        <span className="text-xs text-muted-foreground">{t("common.vs")}</span>
         <SideLine pair={pair} k="b" goals={pm.b.goals} label={pm.b.onscreen_label} team={pm.b.team_name} won={pm.winner === "b"} align="right" />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <CalendarDays className="size-3.5" aria-hidden /> {date ?? "Date unknown"}
+          <CalendarDays className="size-3.5" aria-hidden /> {date ?? t("common.dateUnknown")}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Upload className="size-3.5" aria-hidden /> {uploader}
         </span>
         <span className="ml-auto">
-          {pair.a.display_name} played {pm.a.screen_side}
+          {t("card.played", { name: pair.a.display_name, side: t(pm.a.screen_side === "left" ? "common.left" : "common.right") })}
         </span>
       </div>
     </Link>

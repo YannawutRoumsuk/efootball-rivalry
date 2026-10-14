@@ -1,6 +1,8 @@
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerPair } from "@/lib/domain/types";
 import { fmt, pct } from "@/lib/format";
+import type { Translate } from "@/lib/i18n/core";
+import { getT } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils";
 
 interface Row {
@@ -19,40 +21,40 @@ interface Group {
   rows: Row[];
 }
 
-function groups(s: RivalrySummary): Group[] {
+function groups(s: RivalrySummary, t: Translate): Group[] {
   const n = (v: number | null) => fmt(v, 1);
   const p = (v: number | null) => pct(v, 1);
   return [
     {
-      title: "Totals",
-      tag: "Σ all matches",
+      title: t("cmp.totals"),
+      tag: t("cmp.totalsTag"),
       rows: [
-        { label: "Goals", a: s.a.goalsFor, b: s.b.goalsFor, format: n },
-        { label: "Clean sheets", a: s.a.cleanSheets, b: s.b.cleanSheets, format: n },
-        { label: "Shots", a: s.a.shots.samples ? s.a.shots.total : null, b: s.b.shots.samples ? s.b.shots.total : null, format: n },
+        { label: t("stat.goals"), a: s.a.goalsFor, b: s.b.goalsFor, format: n },
+        { label: t("cmp.cleanSheets"), a: s.a.cleanSheets, b: s.b.cleanSheets, format: n },
+        { label: t("stat.shots"), a: s.a.shots.samples ? s.a.shots.total : null, b: s.b.shots.samples ? s.b.shots.total : null, format: n },
       ],
     },
     {
-      title: "Per match",
-      tag: "averages",
+      title: t("cmp.perMatch"),
+      tag: t("cmp.perMatchTag"),
       rows: [
-        { label: "Goals", a: s.a.avgGoalsFor, b: s.b.avgGoalsFor, format: n },
-        { label: "Possession", a: s.a.possession.average, b: s.b.possession.average, format: p },
-        { label: "Shots", a: s.a.shots.average, b: s.b.shots.average, format: n },
-        { label: "Shots on target", a: s.a.shotsOnTarget.average, b: s.b.shotsOnTarget.average, format: n },
-        { label: "Passes", a: s.a.passes.average, b: s.b.passes.average, format: n },
-        { label: "Tackles", a: s.a.tackles.average, b: s.b.tackles.average, format: n },
-        { label: "Interceptions", a: s.a.interceptions.average, b: s.b.interceptions.average, format: n },
-        { label: "Saves", a: s.a.saves.average, b: s.b.saves.average, format: n },
+        { label: t("stat.goals"), a: s.a.avgGoalsFor, b: s.b.avgGoalsFor, format: n },
+        { label: t("stat.possession_pct"), a: s.a.possession.average, b: s.b.possession.average, format: p },
+        { label: t("stat.shots"), a: s.a.shots.average, b: s.b.shots.average, format: n },
+        { label: t("stat.shots_on_target"), a: s.a.shotsOnTarget.average, b: s.b.shotsOnTarget.average, format: n },
+        { label: t("stat.passes"), a: s.a.passes.average, b: s.b.passes.average, format: n },
+        { label: t("stat.tackles"), a: s.a.tackles.average, b: s.b.tackles.average, format: n },
+        { label: t("stat.interceptions"), a: s.a.interceptions.average, b: s.b.interceptions.average, format: n },
+        { label: t("stat.saves"), a: s.a.saves.average, b: s.b.saves.average, format: n },
       ],
     },
     {
-      title: "Rates",
-      tag: "from totals",
+      title: t("cmp.rates"),
+      tag: t("cmp.ratesTag"),
       rows: [
-        { label: "Shot accuracy", a: s.a.shotAccuracy, b: s.b.shotAccuracy, format: p, hint: "On target ÷ shots" },
-        { label: "Conversion", a: s.a.conversionRate, b: s.b.conversionRate, format: p, hint: "Goals ÷ shots" },
-        { label: "Pass completion", a: s.a.passCompletion, b: s.b.passCompletion, format: p, hint: "Successful ÷ passes" },
+        { label: t("cmp.accuracy"), a: s.a.shotAccuracy, b: s.b.shotAccuracy, format: p, hint: t("cmp.accuracyHint") },
+        { label: t("cmp.conversion"), a: s.a.conversionRate, b: s.b.conversionRate, format: p, hint: t("cmp.conversionHint") },
+        { label: t("cmp.passCompletion"), a: s.a.passCompletion, b: s.b.passCompletion, format: p, hint: t("cmp.passCompletionHint") },
       ],
     },
   ];
@@ -66,7 +68,7 @@ function ComparisonRow({ row }: { row: Row }) {
 
   return (
     <div className="grid grid-cols-[3.5rem_1fr_3.5rem] items-center gap-3 py-2 sm:grid-cols-[4.5rem_1fr_4.5rem]">
-      <span className={cn("font-display text-base font-semibold tabular", better === "a" ? "text-player-a" : "text-foreground/80")}>
+      <span className={cn("text-base font-semibold tabular", better === "a" ? "text-player-a" : "text-foreground/80")}>
         {row.format(a)}
       </span>
       <div className="min-w-0">
@@ -82,29 +84,32 @@ function ComparisonRow({ row }: { row: Row }) {
           ) : null}
         </div>
       </div>
-      <span className={cn("text-right font-display text-base font-semibold tabular", better === "b" ? "text-player-b" : "text-foreground/80")}>
+      <span className={cn("text-right text-base font-semibold tabular", better === "b" ? "text-player-b" : "text-foreground/80")}>
         {row.format(b)}
       </span>
     </div>
   );
 }
 
-export function StatComparison({ summary, pair }: { summary: RivalrySummary; pair: PlayerPair }) {
+export async function StatComparison({ summary, pair }: { summary: RivalrySummary; pair: PlayerPair }) {
+  const t = await getT();
   return (
     <section aria-labelledby="compare-heading" className="panel p-4 sm:p-6">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 id="compare-heading" className="eyebrow">Statistics comparison</h2>
+        <h2 id="compare-heading" className="text-sm font-semibold">
+          {t("cmp.title")}
+        </h2>
         <p className="flex gap-3 text-xs font-medium">
           <span className="truncate text-player-a">{pair.a.display_name}</span>
           <span className="truncate text-player-b">{pair.b.display_name}</span>
         </p>
       </div>
       <div className="space-y-4">
-        {groups(summary).map((g) => (
+        {groups(summary, t).map((g) => (
           <div key={g.title}>
             <div className="mb-1 flex items-baseline gap-2 border-b pb-1.5">
-              <h3 className="font-display text-sm font-semibold">{g.title}</h3>
-              <span className="text-[0.7rem] text-muted-foreground">{g.tag}</span>
+              <h3 className="text-sm font-medium">{g.title}</h3>
+              <span className="text-xs text-muted-foreground">{g.tag}</span>
             </div>
             {g.rows.map((r) => (
               <ComparisonRow key={`${g.title}-${r.label}`} row={r} />
@@ -112,9 +117,7 @@ export function StatComparison({ summary, pair }: { summary: RivalrySummary; pai
           </div>
         ))}
       </div>
-      <p className="mt-3 text-[0.7rem] text-muted-foreground">
-        Averages only include matches where the stat was recorded. Missing values are never counted as zero.
-      </p>
+      <p className="mt-3 text-xs text-muted-foreground">{t("cmp.note")}</p>
     </section>
   );
 }

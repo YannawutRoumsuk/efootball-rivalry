@@ -6,18 +6,20 @@ import { seatColor } from "@/components/player/seat-scope";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { HistoryFilter } from "@/lib/domain/history";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/core";
 import { cn } from "@/lib/utils";
 
 interface HistoryFiltersProps {
   players: Array<{ seat: number; name: string }>;
 }
 
-const OPTIONS: Array<{ id: HistoryFilter; label: string }> = [
-  { id: "all", label: "All" },
-  { id: "last5", label: "Last 5" },
-  { id: "last10", label: "Last 10" },
-  { id: "draws", label: "Draws" },
-  { id: "high_scoring", label: "Highest scoring" },
+const OPTIONS: Array<{ id: HistoryFilter; label: MessageKey }> = [
+  { id: "all", label: "filter.all" },
+  { id: "last5", label: "filter.last5" },
+  { id: "last10", label: "filter.last10" },
+  { id: "draws", label: "filter.draws" },
+  { id: "high_scoring", label: "filter.high_scoring" },
 ];
 
 const chip = "h-9 shrink-0 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition-colors";
@@ -28,6 +30,7 @@ export function HistoryFilters({ players }: HistoryFiltersProps) {
   const pathname = usePathname();
   const params = useSearchParams();
   const [pending, start] = useTransition();
+  const t = useT();
 
   const current = (params.get("filter") ?? "all") as HistoryFilter;
   const player = params.get("player");
@@ -45,7 +48,7 @@ export function HistoryFilters({ players }: HistoryFiltersProps) {
 
   return (
     <div className={cn("space-y-3 transition-opacity", pending && "opacity-60")}>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="toolbar" aria-label="Filter matches">
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="toolbar" aria-label={t("filter.label")}>
         {OPTIONS.map((o) => (
           <button
             key={o.id}
@@ -54,19 +57,19 @@ export function HistoryFilters({ players }: HistoryFiltersProps) {
             onClick={() => update({ filter: o.id === "all" ? null : o.id })}
             className={cn(chip, current === o.id ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
           >
-            {o.label}
+            {t(o.label)}
           </button>
         ))}
       </div>
 
-      <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="toolbar" aria-label="Filter by player">
+      <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="toolbar" aria-label={t("filter.byPlayer")}>
         <button
           type="button"
           aria-pressed={!player}
           onClick={() => update({ player: null, wins: null })}
           className={cn(chip, !player ? "border-foreground bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
         >
-          Everyone
+          {t("filter.everyone")}
         </button>
         {players.map((p) => {
           const active = player === String(p.seat);
@@ -86,23 +89,23 @@ export function HistoryFilters({ players }: HistoryFiltersProps) {
         {player && (
           <label className="flex h-9 shrink-0 items-center gap-2 pl-1 text-sm text-muted-foreground">
             <input type="checkbox" className="size-4" checked={winsOnly} onChange={(e) => update({ wins: e.target.checked ? "1" : null })} />
-            Wins only
+            {t("filter.winsOnly")}
           </label>
         )}
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label htmlFor="from" className="text-xs text-muted-foreground">From</Label>
+          <Label htmlFor="from" className="text-xs text-muted-foreground">{t("filter.from")}</Label>
           <Input id="from" type="date" className="h-10 w-40" defaultValue={params.get("from") ?? ""} onChange={(e) => update({ from: e.target.value || null })} />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="to" className="text-xs text-muted-foreground">To</Label>
+          <Label htmlFor="to" className="text-xs text-muted-foreground">{t("filter.to")}</Label>
           <Input id="to" type="date" className="h-10 w-40" defaultValue={params.get("to") ?? ""} onChange={(e) => update({ to: e.target.value || null })} />
         </div>
         <label className="flex h-10 items-center gap-2 text-sm text-muted-foreground">
           <input type="checkbox" className="size-4" checked={params.get("void") === "1"} onChange={(e) => update({ void: e.target.checked ? "1" : null })} />
-          Show voided
+          {t("filter.showVoid")}
         </label>
       </div>
     </div>

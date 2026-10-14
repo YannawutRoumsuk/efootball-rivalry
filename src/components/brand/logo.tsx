@@ -14,9 +14,7 @@ export function Logo({ className, compact = false }: LogoProps) {
         <path d="M28 6H18l-6 10 6 10h10l-6-10z" fill="var(--player-b)" opacity="0.9" />
       </svg>
       {!compact && (
-        <span className="font-display text-base leading-none font-bold tracking-wide uppercase">
-          Rivalry<span className="text-muted-foreground">.</span>
-        </span>
+        <span className="text-base leading-none font-semibold">Rivalry</span>
       )}
     </span>
   );
