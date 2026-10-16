@@ -14,6 +14,8 @@ export interface Rivalry {
   id: string;
   name: string;
   created_at: string;
+  /** When seasons started for this group (ISO); matches recorded earlier are the pre-season. */
+  season_epoch: string | null;
 }
 
 export interface RivalryContext {
@@ -35,10 +37,11 @@ export const getRivalryContext = cache(async (): Promise<RivalryContext | null> 
 
   return withUser(user.id, async (tx) => {
     const [profile] = await tx<Player[]>`select id, display_name, avatar_url from public.profiles where id = ${user.id}`;
-    const [rivalry] = await tx<Rivalry[]>`
-      select r.id, r.name, r.created_at::text as created_at
+    const [row] = await tx<Array<Omit<Rivalry, "season_epoch"> & { season_epoch: Date | null }>>`
+      select r.id, r.name, r.created_at::text as created_at, r.season_epoch
       from public.rivalry_members m join public.rivalries r on r.id = m.rivalry_id
       where m.user_id = ${user.id}`;
+    const rivalry: Rivalry | undefined = row && { ...row, season_epoch: row.season_epoch?.toISOString() ?? null };
 
     const base: RivalryContext = {
       userId: user.id,

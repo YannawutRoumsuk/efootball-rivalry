@@ -92,6 +92,33 @@ export const en = {
   "pair.showing": "showing below",
   "pair.tap": "tap to view",
 
+  // Elo rating
+  "elo.col": "Elo",
+  "elo.provisional": "Pending",
+  "elo.provisionalHint": "Rating settles after {n} games this season",
+  "elo.how": "How is Elo calculated?",
+  "rank.elo": "Elo ranking",
+  "rank.points": "Points",
+  "elo.match.title": "Elo in this match",
+  "elo.match.perf": "in-game performance {x}%",
+  "elo.match.expected": "expected {x}%",
+  "elo.match.none": "This match doesn't count towards Elo (not confirmed).",
+  "chart.elo.title": "Elo rating over time",
+  "chart.elo.sub": "Rating after each match (everyone starts at 1000)",
+
+  // Seasons
+  "season.label": "Season",
+  "season.n": "Season {n}",
+  "season.pre": "Pre-season",
+  "season.preHint": "before {date}",
+  "season.all": "All seasons",
+  "season.current": "now",
+  "season.newTitle": "A new season has started",
+  "season.newBody": "Tables and Elo start fresh every quarter. Earlier matches are kept — open a previous season or all seasons to see them.",
+  "season.viewPrev": "View previous season",
+  "season.viewAll": "View all seasons",
+  "season.allNote": "All seasons combined. Elo here runs continuously across every season.",
+
   // Head-to-head hero
   "hero.title": "Head to head",
   "hero.winPct": "Win %",

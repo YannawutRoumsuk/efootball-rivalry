@@ -1,5 +1,6 @@
 import { Lock, ScanText } from "lucide-react";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { PlayerAvatar } from "@/components/player/player-avatar";
 import { seatColor, seatStyle } from "@/components/player/seat-scope";
@@ -73,6 +74,9 @@ export default async function SettingsPage() {
           {ai ? t("settings.aiFallback", { provider: ai.provider, model: ai.model }) : t("settings.noAi")}
         </p>
         <p className="text-sm text-muted-foreground">{t("settings.count", { n: count ?? 0 })}</p>
+        <Link href="/guide/elo" className="inline-block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+          {t("elo.how")}
+        </Link>
         <div className="flex flex-wrap gap-2 pt-2">
           <SignOutButton />
         </div>

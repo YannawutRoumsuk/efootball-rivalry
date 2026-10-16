@@ -3,12 +3,16 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
+import { SeasonPicker } from "@/components/league/season-picker";
 import { PairScope, seatColor } from "@/components/player/seat-scope";
 import { StatsCharts } from "@/components/stats/charts";
 import { PointsRace } from "@/components/stats/points-race";
 import { RangeFilter } from "@/components/stats/range-filter";
 import { Button } from "@/components/ui/button";
-import { allPairs, matchesBetween, pairFor, pointsTimeline, resolvePair } from "@/lib/domain/league";
+import { computeElo } from "@/lib/domain/elo";
+import { allPairs, matchesBetween, pairFor, pointsTimeline, resolvePair, type PointsPoint } from "@/lib/domain/league";
+import { listSeasons, matchesInScope, parseScope, type Scope } from "@/lib/domain/seasons";
+import { hrefWith } from "@/lib/url";
 import { officialMatches, toPerspectives } from "@/lib/domain/match";
 import { summarizeRivalry } from "@/lib/domain/stats";
 import { applyRange, buildTimeline, parseRange } from "@/lib/domain/timeline";
@@ -30,7 +34,20 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
 
   const str = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : undefined);
   const range = parseRange({ range: str("range"), from: str("from"), to: str("to") });
-  const everything = await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id));
+  const stored = await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id));
+  const epoch = ctx.rivalry!.season_epoch;
+  const seasons = listSeasons(stored, epoch);
+  const scope = parseScope(str("season"), seasons);
+  const everything = matchesInScope(stored, scope, epoch);
+  const seasonHrefs = Object.fromEntries(
+    [...seasons.map((x) => x.key), "all"].map((k) => [k, hrefWith("/stats", params, { season: k })]),
+  ) as Record<Scope, string>;
+  const players = roster.map((p) => ({ seat: p.seat, name: p.display_name }));
+  const eloPoints: PointsPoint[] = computeElo(everything, roster.map((p) => p.id)).timeline.map((pt) => {
+    const point = { matchNo: pt.matchNo, label: `#${pt.matchNo}` } as PointsPoint;
+    for (const p of roster) point[`p${p.seat}`] = Math.round(pt.ratings[p.id]);
+    return point;
+  });
   const [x, y] = resolvePair(str("pair"), roster, everything, ctx.me?.id ?? null)!;
   const pair = pairFor(roster, x.id, y.id);
   const all = toPerspectives(matchesBetween(everything, x.id, y.id), pair);
@@ -38,7 +55,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
   const leagueMatches = officialMatches(everything);
   const pairHref = (key: string) => {
     const sp = new URLSearchParams();
-    for (const k of ["range", "from", "to"]) if (str(k)) sp.set(k, str(k)!);
+    for (const k of ["range", "from", "to", "season"]) if (str(k)) sp.set(k, str(k)!);
     sp.set("pair", key);
     return `/stats?${sp.toString()}`;
   };
@@ -48,9 +65,9 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
 
   return (
     <div className="space-y-6">
-      {roster.length > 2 && leagueMatches.length > 0 && (
-        <PointsRace points={pointsTimeline(everything, roster)} players={roster.map((p) => ({ seat: p.seat, name: p.display_name }))} />
-      )}
+      <SeasonPicker seasons={seasons} scope={scope} hrefs={seasonHrefs} />
+      {leagueMatches.length > 0 && <PointsRace kind="elo" points={eloPoints} players={players} />}
+      {roster.length > 2 && leagueMatches.length > 0 && <PointsRace points={pointsTimeline(everything, roster)} players={players} />}
       {roster.length > 2 && (
         <nav aria-label={t("stats.choosePair")} className="flex flex-wrap gap-2">
           {allPairs(roster).map(([pa, pb]) => {

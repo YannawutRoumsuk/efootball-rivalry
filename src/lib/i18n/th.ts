@@ -87,6 +87,33 @@ export const th: Record<keyof typeof en, string> = {
   "pair.showing": "แสดงด้านล่าง",
   "pair.tap": "แตะเพื่อดู",
 
+  // Elo rating
+  "elo.col": "Elo",
+  "elo.provisional": "รอประมวลผล",
+  "elo.provisionalHint": "คะแนนจะเริ่มนิ่งเมื่อเล่นครบ {n} นัดในซีซันนี้",
+  "elo.how": "Elo คิดยังไง?",
+  "rank.elo": "อันดับ Elo",
+  "rank.points": "แต้มสะสม",
+  "elo.match.title": "Elo จากแมตช์นี้",
+  "elo.match.perf": "ฟอร์มในเกม {x}%",
+  "elo.match.expected": "โอกาสชนะที่คาดไว้ {x}%",
+  "elo.match.none": "แมตช์นี้ไม่ถูกนับใน Elo (ยังไม่ได้ยืนยัน)",
+  "chart.elo.title": "Elo ตามเวลา",
+  "chart.elo.sub": "คะแนนหลังแต่ละแมตช์ (ทุกคนเริ่มที่ 1000)",
+
+  // Seasons
+  "season.label": "ซีซัน",
+  "season.n": "ซีซัน {n}",
+  "season.pre": "พรีซีซัน",
+  "season.preHint": "ก่อน {date}",
+  "season.all": "รวมทุกซีซัน",
+  "season.current": "ตอนนี้",
+  "season.newTitle": "ซีซันใหม่เริ่มแล้ว",
+  "season.newBody": "ตารางและ Elo เริ่มใหม่ทุกไตรมาส แมตช์เก่ายังอยู่ครบ เปิดดูซีซันก่อนหรือรวมทุกซีซันได้",
+  "season.viewPrev": "ดูซีซันก่อน",
+  "season.viewAll": "ดูรวมทุกซีซัน",
+  "season.allNote": "รวมทุกซีซัน ส่วน Elo ในมุมมองนี้คิดต่อเนื่องตลอดทุกซีซัน",
+
   "hero.title": "ตัวต่อตัว",
   "hero.winPct": "ชนะ %",
   "hero.goals": "ประตู",

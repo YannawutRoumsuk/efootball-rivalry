@@ -8,11 +8,12 @@ import { cn } from "@/lib/utils";
 export async function PairRecords({
   records,
   selected,
-  basePath,
+  hrefFor,
 }: {
   records: PairRecord[];
   selected: string;
-  basePath: string;
+  /** Link that selects a pair ("1-3"), keeping the page's other filters. */
+  hrefFor: (pairKey: string) => string;
 }) {
   const t = await getT();
   return (
@@ -24,7 +25,7 @@ export async function PairRecords({
         return (
           <Link
             key={key}
-            href={`${basePath}?pair=${key}`}
+            href={hrefFor(key)}
             scroll={false}
             aria-current={active ? "true" : undefined}
             className={cn(

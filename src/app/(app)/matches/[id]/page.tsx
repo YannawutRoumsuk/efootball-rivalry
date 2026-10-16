@@ -1,18 +1,22 @@
 import { ArrowLeft, CalendarDays, History, ImageOff, Upload } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EloChange } from "@/components/matches/elo-change";
 import { MatchActions } from "@/components/matches/match-actions";
 import { SideBySideStats } from "@/components/matches/side-by-side-stats";
 import { StatusBadge } from "@/components/matches/status-badge";
 import { ScreenshotViewer } from "@/components/upload/screenshot-viewer";
 import { PairScope } from "@/components/player/seat-scope";
+import { computeElo } from "@/lib/domain/elo";
 import { pairFor } from "@/lib/domain/league";
+import { listSeasons, matchesInScope, seasonOf } from "@/lib/domain/seasons";
 import { sideOnScreen, toPerspective } from "@/lib/domain/match";
 import type { PlayerKey } from "@/lib/domain/types";
 import { formatMatchDate, formatTimestamp } from "@/lib/format";
 import type { MessageKey } from "@/lib/i18n/core";
 import { getLocale, getT } from "@/lib/i18n/server";
-import { asUser, requirePageContext, isUuid, loadMatch } from "@/lib/server/context";
+import { seasonName } from "@/lib/i18n/seasons";
+import { asUser, requirePageContext, isUuid, loadMatch, loadMatches } from "@/lib/server/context";
 import { screenshotUrl } from "@/lib/server/storage";
 import { cn } from "@/lib/utils";
 
@@ -59,10 +63,14 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
       from public.match_events where match_id = ${id} order by created_at desc`;
     const [max] = await tx<Array<{ match_no: number }>>`
       select max(match_no)::int as match_no from public.matches where rivalry_id = ${ctx.rivalry!.id}`;
-    return { match, upload, events, maxNo: max?.match_no ?? match.match_no };
+    const everything = await loadMatches(tx, ctx.rivalry!.id);
+    return { match, upload, events, everything, maxNo: max?.match_no ?? match.match_no };
   });
   if (!data) notFound();
   const { match, events } = data;
+  const epoch = ctx.rivalry!.season_epoch;
+  const season = listSeasons(data.everything, epoch).find((s) => s.key === seasonOf(match, epoch));
+  const eloChange = computeElo(matchesInScope(data.everything, seasonOf(match, epoch), epoch), ctx.roster.map((p) => p.id)).byMatch.get(match.id) ?? null;
   const imageUrl = data.upload ? screenshotUrl(data.upload.id) : null;
 
   const pair = pairFor(ctx.roster, match.sides[0].player_id, match.sides[1].player_id);
@@ -133,6 +141,12 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
         </section>
 
         <MatchActions match={match} roster={ctx.roster} meId={me.id} maxMatchNo={data.maxNo} />
+
+        <EloChange
+          change={eloChange}
+          players={[ctx.roster.find((p) => p.id === left.player_id)!, ctx.roster.find((p) => p.id === right.player_id)!]}
+          seasonName={season ? seasonName(season, t) : ""}
+        />
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start">
           <section aria-labelledby="shot-heading" className="space-y-3">
