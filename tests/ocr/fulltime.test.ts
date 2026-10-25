@@ -3,7 +3,7 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { matchKnownLabel, normalizeLabel, suggestPlayers, trustedLatinLabel } from "@/lib/ocr/labels";
-import { readFullTimeScreen } from "@/lib/ocr/fulltime";
+import { ocrWorkersLoaded, readFullTimeScreen } from "@/lib/ocr/fulltime";
 
 const fixture = readFileSync(join(__dirname, "..", "fixtures", "fulltime-kyngian-5-2.webp"));
 
@@ -85,4 +85,21 @@ describe("on-screen name matching", () => {
     expect(trustedLatinLabel("KynGian", 60)).toBeNull();
     expect(trustedLatinLabel("ห ้ อ น", 95)).toBeNull();
   });
+});
+
+describe("OCR worker lifecycle", () => {
+  it("unloads the workers after a quiet period and reloads them for the next read", async () => {
+    process.env.OCR_IDLE_MS = "300";
+    try {
+      const first = await readFullTimeScreen(fixture);
+      expect(first.complete).toBe(true);
+      expect(ocrWorkersLoaded()).toBe(true);
+      await new Promise((r) => setTimeout(r, 1200));
+      expect(ocrWorkersLoaded()).toBe(false);
+      const again = await readFullTimeScreen(fixture);
+      expect(again.left).toMatchObject(EXPECTED.left);
+    } finally {
+      delete process.env.OCR_IDLE_MS;
+    }
+  }, 90_000);
 });

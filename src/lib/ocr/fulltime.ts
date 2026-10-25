@@ -58,6 +58,13 @@ const SCORE_HEIGHT = 50;
 const MAX_HEIGHT = 1200;
 /** A full read normally takes 1–4 s; past this the workers are assumed stuck and recreated. */
 const READ_TIMEOUT_MS = 30_000;
+/**
+ * The three workers hold ~140 MB. Railway bills RAM by the minute, so they are
+ * unloaded after this long without a read; the next read reloads them (~1–2 s).
+ * OCR_IDLE_MS overrides it (tests use a short value).
+ */
+const DEFAULT_IDLE_MS = 5 * 60_000;
+const idleMs = () => Number(process.env.OCR_IDLE_MS) || DEFAULT_IDLE_MS;
 
 type Region = { left: number; top: number; width: number; height: number };
 /** The screenshot decoded once to 8-bit greyscale; every crop is cut from this buffer. */
@@ -108,6 +115,20 @@ async function resetWorkers(): Promise<void> {
 
 declare global {
   var __rivalryOcrQueue: Promise<unknown> | undefined;
+  var __rivalryOcrIdle: NodeJS.Timeout | undefined;
+}
+
+/** True while the OCR workers are in memory (or loading). */
+export function ocrWorkersLoaded(): boolean {
+  return globalThis.__rivalryOcr !== undefined;
+}
+
+/** (Re)starts the idle countdown; the unload runs through the queue so it never interrupts a read. */
+function scheduleUnload(): void {
+  clearTimeout(globalThis.__rivalryOcrIdle);
+  globalThis.__rivalryOcrIdle = setTimeout(() => void enqueue(resetWorkers), idleMs());
+  // Don't keep the process (or a test run) alive just for this timer.
+  globalThis.__rivalryOcrIdle.unref?.();
 }
 
 /** One read at a time: the workers are shared, and queuing keeps CPU and memory bounded under bursts. */
@@ -224,11 +245,14 @@ async function decode(source: Buffer): Promise<Grey | null> {
 /** Queued, time-limited read; a failed or stuck read recreates the workers before rethrowing. */
 export function readFullTimeScreen(source: Buffer): Promise<OcrRead> {
   return enqueue(async () => {
+    clearTimeout(globalThis.__rivalryOcrIdle);
     try {
       return await withTimeout(read(source), READ_TIMEOUT_MS);
     } catch (err) {
       await resetWorkers();
       throw err;
+    } finally {
+      if (ocrWorkersLoaded()) scheduleUnload();
     }
   });
 }
