@@ -58,6 +58,12 @@ export const th: Record<keyof typeof en, string> = {
   "stat.interceptions": "ตัดบอล",
   "stat.tackles": "แท็กเกิล",
   "stat.saves": "เซฟ",
+  "stat.penalties": "จุดโทษ",
+
+  // Penalty shoot-outs
+  "pk.short": "จุดโทษ {l}–{r}",
+  "pk.won": "{name} ชนะจุดโทษ",
+  "pk.wonShort": "ชนะจุดโทษ",
 
   "dash.title": "หน้าหลัก",
   "dash.noSeats.title": "ยังไม่ได้ตั้งค่าผู้เล่น",
@@ -260,6 +266,11 @@ export const th: Record<keyof typeof en, string> = {
   "act.done.edit": "แก้ไขแมตช์แล้ว",
   "act.done.move": "เปลี่ยนลำดับแล้ว",
   "act.failed": "ทำรายการไม่สำเร็จ",
+  "act.delete": "ลบ",
+  "act.delete.title": "ลบแมตช์นี้ถาวร?",
+  "act.delete.body": "แมตช์ #{n} และภาพหน้าจอจะถูกลบสำหรับทุกคน ตาราง Elo และสถิติทั้งหมดจะคิดใหม่โดยไม่มีแมตช์นี้ ย้อนกลับไม่ได้",
+  "act.delete.cta": "ลบถาวร",
+  "act.done.delete": "ลบแมตช์แล้ว",
 
   "upload.eyebrow": "ผลใหม่",
   "upload.title": "อัปโหลดแมตช์",
@@ -318,6 +329,9 @@ export const th: Record<keyof typeof en, string> = {
   "editor.team": "ทีมที่ใช้ (ไม่บังคับ)",
   "editor.teamPlaceholder": "เช่น Arsenal",
   "editor.ft": "จบ",
+  "editor.pens": "PK",
+  "editor.pensHint": "ดวลจุดโทษ ใส่เฉพาะแมตช์ที่ไปถึงจุดโทษ (บนจอขึ้นแบบ “6 PK 7”)",
+  "editor.addPens": "มีดวลจุดโทษไหม?",
   "editor.date": "วันที่แข่ง (ไม่บังคับ)",
   "editor.dateHint": "ถ้าไม่รู้ปล่อยว่างได้ ระบบไม่ใช้วันที่อัปโหลดแทนวันแข่ง",
   "editor.sideLabel": "{stat}ฝั่ง{side}",
@@ -331,6 +345,9 @@ export const th: Record<keyof typeof en, string> = {
   "issue.goalsGtSot": "ฝั่ง{side}ยิงประตูได้มากกว่าจำนวนยิงเข้ากรอบ ถ้าไม่ใช่ลูกทำเข้าประตูตัวเอง ให้ตรวจตัวเลขอีกครั้ง",
   "issue.possessionTotal": "ครองบอลรวมกันได้ {total}% ไม่ใช่ 100%",
   "issue.unreadable": "{stat}ฝั่ง{side} อ่านได้เป็น \"{value}\" ซึ่งใช้ไม่ได้ กรอกใหม่ด้วย",
+  "issue.pensBoth": "กรอกผลดวลจุดโทษให้ครบทั้งสองฝั่ง",
+  "issue.pensNotLevel": "ดวลจุดโทษได้เฉพาะตอนสกอร์เสมอกัน",
+  "issue.pensTie": "ผลดวลจุดโทษต้องมีผู้ชนะ เสมอไม่ได้",
 
   "dup.title": "อาจเป็นแมตช์ซ้ำ",
   "dup.identical_image": "ภาพนี้เคยใช้บันทึกไปแล้ว",
@@ -451,4 +468,5 @@ export const th: Record<keyof typeof en, string> = {
   "api.AI_NOT_CONFIGURED": "อ่านภาพนี้อัตโนมัติไม่ได้",
   "api.POSSIBLE_DUPLICATE": "ดูเหมือนแมตช์นี้ถูกบันทึกไปแล้ว",
   "api.INTERNAL": "มีบางอย่างผิดพลาด ลองใหม่อีกครั้ง",
+  "api.OWNER_ONLY": "เฉพาะผู้เล่น 1 เท่านั้นที่ลบแมตช์ได้",
 };

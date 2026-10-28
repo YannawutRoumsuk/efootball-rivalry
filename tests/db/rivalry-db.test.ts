@@ -240,3 +240,54 @@ describe("rate limiting", () => {
     expect(await call()).toBe(false);
   });
 });
+
+describe("penalty shoot-outs", () => {
+  it("stores each side's shoot-out goals, and keeps them through an edit", async () => {
+    const pk = (l: number | null, r: number | null) =>
+      JSON.stringify([
+        { player_id: alice, screen_side: "left", goals: 7, penalties: l },
+        { player_id: bob, screen_side: "right", goals: 7, penalties: r },
+      ]);
+    const [{ match_id }] = await rpc<{ match_id: string }>(alice, `select * from public.create_match($1, $2::jsonb)`, [rivalryId, pk(6, 7)]);
+    const read = async () =>
+      (await rpc<{ penalties: number | null }>(alice, `select penalties from match_sides where match_id = $1 order by screen_side`, [match_id])).map((r) => r.penalties);
+    expect(await read()).toEqual([6, 7]);
+    await rpc(alice, `select public.update_match($1, $2::jsonb)`, [match_id, pk(5, 4)]);
+    expect(await read()).toEqual([5, 4]);
+    // Older clients that never send penalties still work (null = no shoot-out).
+    await rpc(alice, `select * from public.create_match($1, $2::jsonb)`, [rivalryId, sides(alice, bob, 2, 1)]);
+    await expect(rpc(alice, `select * from public.create_match($1, $2::jsonb)`, [rivalryId, pk(51, 0)])).rejects.toThrow(/check/i);
+  });
+});
+
+describe("deleting a match", () => {
+  it("only the owner can delete; numbers close up and the screenshot rows go too", async () => {
+    const numbers = async () => (await rpc<{ match_no: number }>(alice, `select match_no from matches order by match_no`)).map((r) => r.match_no);
+    const before = await numbers();
+    const [{ match_id, match_no }] = await rpc<{ match_id: string; match_no: number }>(
+      bob,
+      `select * from public.create_match($1, $2::jsonb, null, null, 2)`,
+      [rivalryId, sides(bob, alice, 3, 0)],
+    );
+    expect(match_no).toBe(2);
+    const upload = `${rivalryId}/${"0".repeat(8)}-0000-4000-8000-${"0".repeat(12)}.png`;
+    await t.db.query(
+      `insert into match_uploads (rivalry_id, match_id, uploaded_by, storage_path, image_hash, mime_type, size_bytes)
+       values ($1, $2, $3, $4, $5, 'image/png', 10)`,
+      [rivalryId, match_id, bob, upload, hash("shot")],
+    );
+
+    // A member who isn't the owner (seat 1) is refused.
+    await expect(rpc(bob, `select * from public.delete_match($1)`, [match_id])).rejects.toThrow(/OWNER_ONLY/);
+    // Outsiders can't even see it.
+    await expect(rpc(mallory, `select * from public.delete_match($1)`, [match_id])).rejects.toThrow(/MATCH_NOT_FOUND/);
+
+    const deleted = await rpc<{ deleted_path: string }>(alice, `select * from public.delete_match($1)`, [match_id]);
+    expect(deleted.map((d) => d.deleted_path)).toEqual([upload]);
+    expect(await numbers()).toEqual(before); // later matches moved back up: no gap
+    const [{ n }] = await rpc<{ n: number }>(alice, `select count(*)::int as n from match_sides where match_id = $1`, [match_id]);
+    expect(n).toBe(0);
+    const [{ u }] = await rpc<{ u: number }>(alice, `select count(*)::int as u from match_uploads where storage_path = $1`, [upload]);
+    expect(u).toBe(0);
+  });
+});

@@ -1,4 +1,4 @@
-import { officialMatches } from "./match";
+import { hasShootout, officialMatches, sideWinner } from "./match";
 import type { Match, MatchSide, Outcome } from "./types";
 
 /**
@@ -22,6 +22,11 @@ export const ELO = {
   provisionalGames: 5,
   /** A winner never loses rating, even when outplayed; they gain at least this much. */
   minWinnerGain: 1,
+  /**
+   * Result value of winning a penalty shoot-out (the loser gets 1 − this):
+   * a win, but less convincing than winning in normal time.
+   */
+  shootoutWin: 0.75,
 } as const;
 
 /** Weights of each stat inside the performance share; missing stats are skipped and the rest rescaled. */
@@ -69,8 +74,9 @@ export function performanceShare(me: MatchSide, opp: MatchSide): number {
   return weight === 0 ? 0.5 : total / weight;
 }
 
-export function matchScore(outcome: Outcome, performance: number): number {
-  const result = outcome === "W" ? 1 : outcome === "D" ? 0.5 : 0;
+export function matchScore(outcome: Outcome, performance: number, shootout = false): number {
+  const win = shootout ? ELO.shootoutWin : 1;
+  const result = outcome === "W" ? win : outcome === "D" ? 0.5 : 1 - win;
   return ELO.resultWeight * result + (1 - ELO.resultWeight) * performance;
 }
 
@@ -105,10 +111,12 @@ export interface EloResult {
 /** One match's rating change for the two players, given their ratings before it. */
 export function rateMatch(match: Match, before: Record<string, number>): EloMatchChange {
   const [x, y] = match.sides;
-  const outcome: Outcome = x.goals === y.goals ? "D" : x.goals > y.goals ? "W" : "L";
+  const w = sideWinner(x, y);
+  const outcome: Outcome = w === null ? "D" : w === "x" ? "W" : "L";
+  const shootout = hasShootout(x, y);
   const perfX = performanceShare(x, y);
   const expX = expectedScore(before[x.player_id], before[y.player_id]);
-  const scoreX = matchScore(outcome, perfX);
+  const scoreX = matchScore(outcome, perfX, shootout);
   let deltaX = ELO.k * (scoreX - expX);
   if (outcome === "W") deltaX = Math.max(deltaX, ELO.minWinnerGain);
   if (outcome === "L") deltaX = Math.min(deltaX, -ELO.minWinnerGain);

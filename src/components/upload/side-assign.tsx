@@ -96,6 +96,7 @@ export function SideAssign({ left, right, roster, meId, leftPlayer, rightPlayer,
               <p className="text-5xl font-bold tabular" style={col.p ? { color: seatColor(col.p.seat) } : undefined}>
                 {col.side.goals ?? "?"}
               </p>
+              {col.side.penalties != null && <p className="text-xs font-medium text-muted-foreground tabular">{t("editor.pens")} {col.side.penalties}</p>}
               <p className="truncate text-sm font-semibold" style={col.p ? { color: seatColor(col.p.seat) } : undefined}>
                 {col.p?.display_name ?? t("assign.who")}
               </p>

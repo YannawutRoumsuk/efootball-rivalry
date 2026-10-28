@@ -254,7 +254,7 @@ function BatchRow({ item, index, total, roster, meId, onPatch, onMove, onRemove 
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-muted-foreground">#{index + 1} · {item.name}</p>
           <p className="text-lg font-semibold tabular">
-            {item.status === "processing" ? <Loader2 className="size-4 animate-spin" /> : `${d.left.goals ?? "?"} – ${d.right.goals ?? "?"}`}
+            {item.status === "processing" ? <Loader2 className="size-4 animate-spin" /> : `${d.left.goals ?? "?"} – ${d.right.goals ?? "?"}${d.left.penalties != null && d.right.penalties != null ? ` (${t("pk.short", { l: d.left.penalties, r: d.right.penalties })})` : ""}`}
           </p>
           {item.status === "saved" && <p className="text-xs text-success">{t("batch.savedAs", { n: item.savedNo ?? "?" })}</p>}
           {item.message && <p className={cn("text-xs", item.status === "error" ? "text-destructive" : "text-warning")}>{item.message}</p>}

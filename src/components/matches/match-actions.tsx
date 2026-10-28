@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpDown, Ban, Flag, Loader2, Pencil, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowUpDown, Ban, Flag, Loader2, Pencil, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +26,8 @@ interface MatchActionsProps {
   roster: RosterPlayer[];
   meId: string;
   maxMatchNo: number;
+  /** Only the group owner (seat 1, PLAYER_1_PIN) may delete; the server enforces it too. */
+  canDelete: boolean;
 }
 
 function toDraftSide(m: Match, side: ScreenSide): DraftSide {
@@ -36,7 +38,7 @@ function toDraftSide(m: Match, side: ScreenSide): DraftSide {
   return draft as DraftSide;
 }
 
-export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsProps) {
+export function MatchActions({ match, roster, meId, maxMatchNo, canDelete }: MatchActionsProps) {
   const router = useRouter();
   const t = useT();
   const [busy, setBusy] = useState(false);
@@ -44,6 +46,7 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
   const [note, setNote] = useState("");
   const [editing, setEditing] = useState(false);
   const [moving, setMoving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [position, setPosition] = useState(String(match.match_no));
 
   const initialDraft = (): MatchDraft => ({
@@ -90,6 +93,19 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
       t("act.done.edit"),
     );
   };
+
+  async function submitDelete() {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/matches/${match.id}`, { method: "DELETE" });
+      toast.success(t("act.done.delete"));
+      router.replace("/matches");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? errorText(err, t) : t("act.failed"));
+      setBusy(false);
+    }
+  }
 
   const submitMove = () =>
     run(
@@ -139,7 +155,29 @@ export function MatchActions({ match, roster, meId, maxMatchNo }: MatchActionsPr
         <Button variant="ghost" className="h-10" onClick={() => setMoving(true)}>
           <ArrowUpDown /> {t("act.reorder")}
         </Button>
+        {canDelete && (
+          <Button variant="ghost" className="h-10 text-destructive" onClick={() => setDeleting(true)}>
+            <Trash2 /> {t("act.delete")}
+          </Button>
+        )}
       </div>
+
+      <Dialog open={deleting} onOpenChange={(o) => !busy && setDeleting(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("act.delete.title")}</DialogTitle>
+            <DialogDescription>{t("act.delete.body", { n: match.match_no })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" disabled={busy} onClick={() => setDeleting(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="destructive" disabled={busy} onClick={submitDelete}>
+              {busy && <Loader2 className="animate-spin" />} {t("act.delete.cta")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={statusAction !== null} onOpenChange={(o) => !o && setStatusAction(null)}>
         {statusAction && (

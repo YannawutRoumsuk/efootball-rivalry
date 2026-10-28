@@ -19,6 +19,9 @@ export const STAT_LIMITS: Record<StatKey | "goals", number> = {
   saves: 200,
 };
 
+/** Shoot-out goals per side; mirrors the database CHECK constraint. */
+export const PENALTY_MAX = 50;
+
 /** Values above these are legal but unusual enough to double-check. */
 const UNUSUAL: Partial<Record<StatKey | "goals", number>> = {
   goals: 20,
@@ -34,6 +37,8 @@ export type DraftSide = {
   onscreen_label: string | null;
   team_name: string | null;
   goals: number | null;
+  /** Penalty shoot-out goals, only when the match went to penalties. */
+  penalties?: number | null;
 } & { [K in StatKey]: number | null };
 
 export type IssueCode =
@@ -45,12 +50,15 @@ export type IssueCode =
   | "succGtPasses"
   | "goalsGtSot"
   | "possessionTotal"
-  | "unreadable";
+  | "unreadable"
+  | "pensBoth"
+  | "pensNotLevel"
+  | "pensTie";
 
 export interface ValidationIssue {
   severity: "error" | "warning";
   side: ScreenSide | "match";
-  field?: StatKey | "goals";
+  field?: StatKey | "goals" | "penalties";
   /** Translation key suffix (issue.<code>) and its parameters; `message` is the English fallback. */
   code: IssueCode;
   params?: Record<string, string | number>;
@@ -62,6 +70,7 @@ export function emptyDraftSide(): DraftSide {
     onscreen_label: null,
     team_name: null,
     goals: null,
+    penalties: null,
     possession_pct: null,
     shots: null,
     shots_on_target: null,
@@ -153,6 +162,7 @@ export function validateSides(left: DraftSide, right: DraftSide): ValidationIssu
   const issues = [...validateOneSide("left", left), ...validateOneSide("right", right)];
   const pl = left.possession_pct;
   const pr = right.possession_pct;
+  issues.push(...validatePenalties(left, right));
   if (pl !== null && pr !== null && Math.abs(pl + pr - 100) > 1) {
     issues.push({
       severity: "warning",
@@ -164,6 +174,32 @@ export function validateSides(left: DraftSide, right: DraftSide): ValidationIssu
     });
   }
   return issues;
+}
+
+/** A shoot-out needs both sides' penalties, a level score, and a winner. */
+function validatePenalties(left: DraftSide, right: DraftSide): ValidationIssue[] {
+  const pl = left.penalties ?? null;
+  const pr = right.penalties ?? null;
+  if (pl === null && pr === null) return [];
+  const issue = (code: IssueCode, message: string, params?: Record<string, string | number>): ValidationIssue => ({
+    severity: "error",
+    side: "match",
+    field: "penalties",
+    code,
+    params,
+    message,
+  });
+  for (const v of [pl, pr]) {
+    if (v !== null && (!Number.isInteger(v) || v < 0 || v > PENALTY_MAX)) {
+      return [{ ...issue("range", `Penalties must be a whole number between 0 and ${PENALTY_MAX}.`, { max: PENALTY_MAX }), side: "match" }];
+    }
+  }
+  if (pl === null || pr === null) return [issue("pensBoth", "Enter the penalty shoot-out score for both sides.")];
+  if (left.goals !== null && right.goals !== null && left.goals !== right.goals) {
+    return [issue("pensNotLevel", "A penalty shoot-out only happens when the score is level.")];
+  }
+  if (pl === pr) return [issue("pensTie", "A penalty shoot-out can't end level.")];
+  return [];
 }
 
 export function hasErrors(issues: readonly ValidationIssue[]): boolean {
@@ -188,6 +224,7 @@ export const sideInputSchema = z.object({
   onscreen_label: label,
   team_name: label,
   goals: z.number().int().min(0).max(STAT_LIMITS.goals),
+  penalties: z.number().int().min(0).max(PENALTY_MAX).nullable().default(null),
   possession_pct: z.number().min(0).max(100).nullable(),
   shots: count(STAT_LIMITS.shots),
   shots_on_target: count(STAT_LIMITS.shots_on_target),

@@ -26,6 +26,7 @@ export function toSideInputs(draft: MatchDraft): [SideInput, SideInput] {
       player_id: (side === "left" ? draft.leftPlayer : draft.rightPlayer)!,
       screen_side: side,
       goals: d.goals ?? 0,
+      penalties: d.penalties ?? null,
       onscreen_label: d.onscreen_label?.trim() || null,
       team_name: d.team_name?.trim() || null,
     };

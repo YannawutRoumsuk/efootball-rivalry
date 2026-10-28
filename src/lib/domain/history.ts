@@ -1,5 +1,5 @@
 import { involves, outcomeOf, type Roster } from "./league";
-import { sortChronologically } from "./match";
+import { sortChronologically, winnerPlayerId } from "./match";
 import type { Match } from "./types";
 
 export type HistoryFilter = "all" | "last5" | "last10" | "draws" | "high_scoring";
@@ -70,7 +70,7 @@ export function queryHistory(matches: readonly Match[], roster: Roster, q: Histo
 
   if (q.filter === "last5") list = list.slice(-5);
   else if (q.filter === "last10") list = list.slice(-10);
-  else if (q.filter === "draws") list = list.filter((m) => m.status !== "void" && m.sides[0].goals === m.sides[1].goals);
+  else if (q.filter === "draws") list = list.filter((m) => m.status !== "void" && winnerPlayerId(m) === null);
 
   const ordered =
     q.filter === "high_scoring"

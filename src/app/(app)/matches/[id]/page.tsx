@@ -10,7 +10,7 @@ import { PairScope } from "@/components/player/seat-scope";
 import { computeElo } from "@/lib/domain/elo";
 import { pairFor } from "@/lib/domain/league";
 import { listSeasons, matchesInScope, seasonOf } from "@/lib/domain/seasons";
-import { sideOnScreen, toPerspective } from "@/lib/domain/match";
+import { hasShootout, sideOnScreen, toPerspective } from "@/lib/domain/match";
 import type { PlayerKey } from "@/lib/domain/types";
 import { formatMatchDate, formatTimestamp } from "@/lib/format";
 import type { MessageKey } from "@/lib/i18n/core";
@@ -81,7 +81,11 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
   const leftKey = keyOf(left.player_id);
   const rightKey = keyOf(right.player_id);
   const nameOf = (pid: string | null) => ctx.roster.find((p) => p.id === pid)?.display_name ?? t("detail.someone");
-  const winnerText = pm.winner === "draw" ? t("detail.drawn") : t("detail.won", { name: pair[pm.winner].display_name });
+  const shootout = hasShootout(left, right);
+  const winnerText =
+    pm.winner === "draw"
+      ? t("detail.drawn")
+      : t(shootout ? "pk.won" : "detail.won", { name: pair[pm.winner].display_name });
 
   return (
     <PairScope seats={pair.seats}>
@@ -119,11 +123,16 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
                   </div>
                 );
               })}
-              <p className="order-2 text-5xl font-bold tabular sm:text-6xl">
-                <span className={seatText(leftKey)}>{left.goals}</span>
-                <span className="mx-2 text-muted-foreground sm:mx-3">–</span>
-                <span className={seatText(rightKey)}>{right.goals}</span>
-              </p>
+              <div className="order-2 text-center">
+                <p className="text-5xl font-bold tabular sm:text-6xl">
+                  <span className={seatText(leftKey)}>{left.goals}</span>
+                  <span className="mx-2 text-muted-foreground sm:mx-3">–</span>
+                  <span className={seatText(rightKey)}>{right.goals}</span>
+                </p>
+                {shootout && (
+                  <p className="mt-1 text-sm font-medium text-muted-foreground tabular">{t("pk.short", { l: left.penalties!, r: right.penalties! })}</p>
+                )}
+              </div>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
@@ -140,7 +149,7 @@ export default async function MatchDetailPage({ params }: PageProps<"/matches/[i
           </div>
         </section>
 
-        <MatchActions match={match} roster={ctx.roster} meId={me.id} maxMatchNo={data.maxNo} />
+        <MatchActions match={match} roster={ctx.roster} meId={me.id} maxMatchNo={data.maxNo} canDelete={me.seat === 1} />
 
         <EloChange
           change={eloChange}

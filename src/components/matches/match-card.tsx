@@ -2,7 +2,7 @@ import { CalendarDays, Upload } from "lucide-react";
 import Link from "next/link";
 import { pairStyle } from "@/components/player/seat-scope";
 import { pairFor, type Roster } from "@/lib/domain/league";
-import { toPerspective } from "@/lib/domain/match";
+import { hasShootout, toPerspective } from "@/lib/domain/match";
 import type { Match, PlayerKey, PlayerPair } from "@/lib/domain/types";
 import { formatMatchDate } from "@/lib/format";
 import { getLocale, getT } from "@/lib/i18n/server";
@@ -60,6 +60,9 @@ export async function MatchCard({ match, roster }: { match: Match; roster: Roste
         <span className="text-xs font-medium text-muted-foreground">{t("card.match", { n: match.match_no })}</span>
         <div className="flex items-center gap-2">
           {pm.winner === "draw" && <span className="text-xs font-medium text-draw">{t("card.draw")}</span>}
+          {hasShootout(pm.a, pm.b) && (
+            <span className="text-xs font-medium text-muted-foreground tabular">{t("pk.short", { l: pm.a.penalties!, r: pm.b.penalties! })}</span>
+          )}
           <StatusBadge status={match.status} label={t(`status.${match.status}`)} />
         </div>
       </div>

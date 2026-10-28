@@ -30,6 +30,7 @@ const DB_ERRORS: Record<string, { status: number; message: string }> = {
   MATCH_REQUIRES_TWO_SIDES: { status: 400, message: "A match must have exactly two sides." },
   UPLOAD_NOT_AVAILABLE: { status: 409, message: "This screenshot is already attached to another match." },
   MATCH_NOT_FOUND: { status: 404, message: "Match not found." },
+  OWNER_ONLY: { status: 403, message: "Only player 1 can delete matches." },
   MATCH_VOID: { status: 409, message: "Restore this match before editing it." },
   INVALID_TRANSITION: { status: 409, message: "That action isn't possible for the match's current status." },
   INVALID_ACTION: { status: 400, message: "Unknown action." },

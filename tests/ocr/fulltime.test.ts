@@ -53,6 +53,38 @@ describe("local OCR of the Full Time screen", () => {
   }, 60_000);
 });
 
+const pkFixture = readFileSync(join(__dirname, "..", "fixtures", "fulltime-pk-7-7.webp"));
+
+// The shoot-out variant of the screen: "7 – 7" with a "6 PK 7" strip, which pushes the score up.
+const PK_EXPECTED = {
+  left: { goals: 7, penalties: 6, possession_pct: 41, shots: 15, shots_on_target: 8, fouls: 6, offsides: 2, corners: 0, free_kicks: 1, passes: 172, successful_passes: 116, crosses: 1, interceptions: 31, tackles: 23, saves: 4 },
+  right: { goals: 7, penalties: 7, possession_pct: 59, shots: 16, shots_on_target: 10, fouls: 1, offsides: 1, corners: 2, free_kicks: 6, passes: 242, successful_passes: 196, crosses: 5, interceptions: 45, tackles: 13, saves: 1 },
+};
+
+describe("penalty shoot-out screen", () => {
+  it("reads the score, the shoot-out and every stat", async () => {
+    const read = await readFullTimeScreen(pkFixture);
+    expect(read.problems).toEqual([]);
+    expect(read.complete).toBe(true);
+    expect(read.left).toMatchObject(PK_EXPECTED.left);
+    expect(read.right).toMatchObject(PK_EXPECTED.right);
+    expect(read.labelCandidates.right.map((c) => c.text).join(" ")).toMatch(/Manchester/);
+  }, 60_000);
+
+  it("still works after JPEG re-compression at a smaller size", async () => {
+    const squashed = await sharp(pkFixture).resize({ width: 1600 }).jpeg({ quality: 60 }).toBuffer();
+    const read = await readFullTimeScreen(squashed);
+    expect(read.left).toMatchObject(PK_EXPECTED.left);
+    expect(read.right).toMatchObject(PK_EXPECTED.right);
+  }, 60_000);
+
+  it("leaves penalties empty on a normal full-time screen", async () => {
+    const read = await readFullTimeScreen(fixture);
+    expect(read.left.penalties ?? null).toBeNull();
+    expect(read.right.penalties ?? null).toBeNull();
+  }, 60_000);
+});
+
 describe("on-screen name matching", () => {
   const known = [
     { playerId: "p1", label: "KynGian", uses: 12 },

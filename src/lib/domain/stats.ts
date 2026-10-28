@@ -116,8 +116,10 @@ function ref(pm: PerspectiveMatch): MatchRef {
 function playerRecords(matches: readonly PerspectiveMatch[], key: PlayerKey) {
   const opp = opponentOf(key);
   const wins = matches.filter((pm) => pm.winner === key);
+  // A shoot-out win has no goal margin, so it never counts as a "biggest win".
+  const marginWins = wins.filter((pm) => sideFor(pm, key).goals > sideFor(pm, opp).goals);
 
-  const bigWin = bestBy(wins, (pm) => sideFor(pm, key).goals - sideFor(pm, opp).goals);
+  const bigWin = bestBy(marginWins, (pm) => sideFor(pm, key).goals - sideFor(pm, opp).goals);
   const mostGoals = bestBy(matches, (pm) => sideFor(pm, key).goals);
   const bestAcc = bestBy(matches, (pm) => {
     const s = sideFor(pm, key);

@@ -33,6 +33,11 @@ export async function readScreenshot(key: string): Promise<Buffer> {
   return readFile(pathFor(key));
 }
 
+/** Removes a stored screenshot; a file that is already gone is not an error. */
+export async function deleteScreenshot(key: string): Promise<void> {
+  await rm(pathFor(key), { force: true });
+}
+
 /** Health probe: can we create and remove a file on the volume? */
 export async function checkStorageWritable(): Promise<boolean> {
   const probe = join(/*turbopackIgnore: true*/ root(), `.health-${process.pid}`);

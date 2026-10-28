@@ -1,4 +1,4 @@
-import { officialMatches, sortChronologically } from "./match";
+import { officialMatches, sortChronologically, winnerPlayerId } from "./match";
 import type { Match, Outcome, Player, PlayerPair } from "./types";
 
 /** A group member with a stable seat number (1-based) used for colours and PINs. */
@@ -27,12 +27,8 @@ export function matchesBetween(matches: readonly Match[], x: string, y: string):
   return sortChronologically(matches.filter((m) => isBetween(m, x, y)));
 }
 
-/** Winner's player id, null for a draw. */
-function winnerOf(match: Match): string | null {
-  const [p, q] = match.sides;
-  if (p.goals === q.goals) return null;
-  return p.goals > q.goals ? p.player_id : q.player_id;
-}
+/** Winner's player id (penalties decide a level score), null for a draw. */
+const winnerOf = winnerPlayerId;
 
 export function outcomeOf(match: Match, playerId: string): Outcome {
   const w = winnerOf(match);

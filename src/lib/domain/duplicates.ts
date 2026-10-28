@@ -78,6 +78,7 @@ export function findImageDuplicates(
 interface CandidateSide extends SideStats {
   player_id: string;
   onscreen_label: string | null;
+  penalties?: number | null;
 }
 
 /**
@@ -93,6 +94,7 @@ export function isLikelySameMatch(
   for (const side of candidate) {
     const other = existing.sides.find((s) => s.player_id === side.player_id);
     if (!other || other.goals !== side.goals) return false;
+    if ((other.penalties ?? null) !== (side.penalties ?? null)) return false;
   }
 
   let compared = 0;

@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { STAT_LIMITS, emptyDraftSide, validateSides, type DraftSide, type ValidationIssue } from "./validation";
+import { PENALTY_MAX, STAT_LIMITS, emptyDraftSide, validateSides, type DraftSide, type ValidationIssue } from "./validation";
 import type { ScreenSide } from "./types";
 
 /** Field names returned by the vision model (matches the public JSON contract). */
 export const AI_COUNT_FIELDS = [
   "goals",
+  "penalties",
   "shots",
   "shots_on_target",
   "fouls",
@@ -65,7 +66,7 @@ function sanitizeSide(side: ScreenSide, raw: RawAiSide, issues: ValidationIssue[
   const put = (field: AiCountField | "possession", value: number | string | null | undefined) => {
     const key = field === "possession" ? "possession_pct" : field;
     const n = toNumber(value);
-    const max = STAT_LIMITS[key];
+    const max = key === "penalties" ? PENALTY_MAX : STAT_LIMITS[key];
     const integer = key !== "possession_pct";
     if (n === null) return;
     if (n === "invalid" || n < 0 || n > max || (integer && !Number.isInteger(n))) {

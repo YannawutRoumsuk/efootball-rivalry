@@ -9,6 +9,8 @@ export const EXTRACTION_PROMPT = `You read eFootball "Full Time" match statistic
 The screen shows two sides: LEFT and RIGHT. At the top each side has an on-screen label (a user name or a team name — copy it exactly, it may be Thai or any language) and the final score in the middle (left goals – right goals). Below are statistic rows; each row has the LEFT value on the left and the RIGHT value on the right:
 Possession (%), Shots, Shots on Target, Fouls, Offsides, Corner Kicks, Free Kicks, Passes, Successful Passes, Crosses, Interceptions, Tackles, Saves.
 
+Penalty shoot-outs: when a level match went to penalties, a strip under the score shows the shoot-out as "<left> PK <right>" (e.g. "6 PK 7"). Put those numbers in "penalties" (left number for LEFT, right number for RIGHT) and keep "goals" as the main score (e.g. 7 and 7). Without that strip, penalties is null for both sides.
+
 Rules:
 - Report exactly what is printed. Never estimate, infer, or calculate a value.
 - If a value is not visible, cut off, blurry or ambiguous, return null. Never use 0 for unreadable values — 0 only when the screen clearly shows 0.

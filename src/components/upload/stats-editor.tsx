@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, OctagonX } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { seatColor } from "@/components/player/seat-scope";
@@ -92,6 +92,45 @@ function IssueList({ issues }: { issues: ValidationIssue[] }) {
   );
 }
 
+/**
+ * Shoot-out score. Shown when the score is level (or penalties are already
+ * filled in, e.g. read from a "6 PK 7" screen); otherwise a small link opens it.
+ */
+function PenaltyRow({
+  left,
+  right,
+  issue,
+  onSideChange,
+}: {
+  left: DraftSide;
+  right: DraftSide;
+  issue?: ValidationIssue;
+  onSideChange: (side: ScreenSide, patch: Partial<DraftSide>) => void;
+}) {
+  const t = useT();
+  const filled = left.penalties != null || right.penalties != null;
+  const level = left.goals !== null && left.goals === right.goals;
+  const [open, setOpen] = useState(false);
+  if (!filled && !level) return null;
+  if (!filled && !open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        {t("editor.addPens")}
+      </button>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl border border-dashed px-3 py-2">
+        <NumberCell align="left" label={t("editor.sideLabel", { side: t("common.Left"), stat: t("stat.penalties") })} value={left.penalties ?? null} issue={issue} onChange={(v) => onSideChange("left", { penalties: v })} />
+        <span className="text-sm font-medium text-muted-foreground">{t("editor.pens")}</span>
+        <NumberCell align="right" label={t("editor.sideLabel", { side: t("common.Right"), stat: t("stat.penalties") })} value={right.penalties ?? null} issue={issue} onChange={(v) => onSideChange("right", { penalties: v })} />
+      </div>
+      <p className="text-xs text-muted-foreground">{t("editor.pensHint")}</p>
+    </div>
+  );
+}
+
 /** Editable left | stat | right grid that mirrors the eFootball stats screen. */
 export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange, onPlayedOnChange }: StatsEditorProps) {
   const id = useId();
@@ -144,6 +183,8 @@ export function StatsEditor({ left, right, meta, issues, playedOn, onSideChange,
         <span className="text-sm font-medium text-muted-foreground">{t("editor.ft")}</span>
         <NumberCell big align="right" label={t("editor.sideLabel", { side: sideName("right"), stat: t("stat.goals") })} value={right.goals} issue={issueFor("right", "goals")} onChange={(v) => onSideChange("right", { goals: v })} />
       </div>
+
+      <PenaltyRow left={left} right={right} issue={issues.find((i) => i.field === "penalties")} onSideChange={onSideChange} />
 
       <div className="space-y-1.5">
         {STAT_KEYS.map((key) => (

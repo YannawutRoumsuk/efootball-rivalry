@@ -44,6 +44,8 @@ export interface MatchSide extends SideStats {
   screen_side: ScreenSide;
   onscreen_label: string | null;
   team_name: string | null;
+  /** Penalty shoot-out goals ("6 PK 7"); null/absent when there was no shoot-out. */
+  penalties?: number | null;
 }
 
 export interface Match {

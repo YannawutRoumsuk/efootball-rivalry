@@ -61,6 +61,12 @@ export const en = {
   "stat.interceptions": "Interceptions",
   "stat.tackles": "Tackles",
   "stat.saves": "Saves",
+  "stat.penalties": "Penalties",
+
+  // Penalty shoot-outs
+  "pk.short": "PK {l}–{r}",
+  "pk.won": "{name} won on penalties",
+  "pk.wonShort": "won on penalties",
 
   // Dashboard
   "dash.title": "Dashboard",
@@ -273,6 +279,11 @@ export const en = {
   "act.done.edit": "Match corrected",
   "act.done.move": "Match order updated",
   "act.failed": "Action failed.",
+  "act.delete": "Delete",
+  "act.delete.title": "Delete this match permanently?",
+  "act.delete.body": "Match #{n} and its screenshot are removed for everyone. Tables, Elo and stats are recalculated without it. This can't be undone.",
+  "act.delete.cta": "Delete permanently",
+  "act.done.delete": "Match deleted",
 
   // Upload
   "upload.eyebrow": "New result",
@@ -334,6 +345,9 @@ export const en = {
   "editor.team": "Team used (optional)",
   "editor.teamPlaceholder": "e.g. Arsenal",
   "editor.ft": "FT",
+  "editor.pens": "PK",
+  "editor.pensHint": "Penalty shoot-out — only if it went to penalties (shown on screen as “6 PK 7”).",
+  "editor.addPens": "Went to penalties?",
   "editor.date": "Match date (optional)",
   "editor.dateHint": "Leave empty if unknown — upload time is never used as the match date.",
   "editor.sideLabel": "{side} {stat}",
@@ -348,6 +362,9 @@ export const en = {
   "issue.goalsGtSot": "{side} scored more goals than shots on target — fine for own goals, otherwise check the numbers.",
   "issue.possessionTotal": "Possession adds up to {total}% instead of 100%.",
   "issue.unreadable": "{side} {stat} was read as \"{value}\", which isn't valid. Please enter it.",
+  "issue.pensBoth": "Enter the penalty shoot-out score for both sides.",
+  "issue.pensNotLevel": "A penalty shoot-out only happens when the score is level.",
+  "issue.pensTie": "A penalty shoot-out can't end level.",
 
   // Duplicates
   "dup.title": "Possible duplicate",
@@ -474,4 +491,5 @@ export const en = {
   "api.AI_NOT_CONFIGURED": "Couldn't read this screenshot automatically.",
   "api.POSSIBLE_DUPLICATE": "This looks like a match that was already saved.",
   "api.INTERNAL": "Something went wrong. Please try again.",
+  "api.OWNER_ONLY": "Only player 1 can delete matches.",
 } as const;
