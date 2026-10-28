@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SeasonPicker } from "@/components/league/season-picker";
 import { PairScope, seatColor } from "@/components/player/seat-scope";
 import { StatsCharts } from "@/components/stats/charts";
-import { PlayerBoard } from "@/components/stats/player-board";
+import { PlayerBoardVisual } from "@/components/stats/player-board-visual";
 import { PointsRace } from "@/components/stats/points-race";
 import { RangeFilter } from "@/components/stats/range-filter";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
     <div className="space-y-6">
       <SeasonPicker seasons={seasons} scope={scope} hrefs={seasonHrefs} />
       {scope === "all" && <p className="text-xs text-muted-foreground">{t("season.allNote")}</p>}
+      {leagueCharts}
       {roster.length > 2 && (
         <nav aria-label={t("stats.choosePair")} className="flex flex-wrap gap-2">
           <Link href={hrefWith("/stats", params, { pair: null })} scroll={false} aria-current={boardView ? "true" : undefined} className={chip(boardView)}>
@@ -96,9 +97,8 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
           {leagueMatches.length === 0 ? (
             <EmptyState icon={BarChart3} title={t("stats.emptyTitle")} description={t("stats.emptyBody")} />
           ) : (
-            <PlayerBoard rows={playerBoard(everything, roster)} elo={computeElo(everything, roster.map((p) => p.id)).players} meId={ctx.me?.id ?? null} />
+            <PlayerBoardVisual rows={playerBoard(everything, roster)} elo={computeElo(everything, roster.map((p) => p.id)).players} meId={ctx.me?.id ?? null} />
           )}
-          {leagueCharts}
         </>
       ) : (
       <PairScope seats={pair.seats}>
@@ -172,7 +172,6 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
       </div>
       </PairScope>
       )}
-      {!boardView && leagueCharts}
     </div>
   );
 }

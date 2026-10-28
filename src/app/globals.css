@@ -67,9 +67,11 @@
   --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
 
-  --seat-1: oklch(0.55 0.12 245);
-  --seat-2: oklch(0.56 0.16 18);
-  --seat-3: oklch(0.55 0.11 155);
+  /* Player colours: validated as a categorical set (all pairs) for colour-blind
+     separation, normal-vision distance and 3:1 contrast on the card surface. */
+  --seat-1: #2677b2;
+  --seat-2: #c04350;
+  --seat-3: #15a68a;
   --on-seat: oklch(0.99 0 0);
   --player-a: var(--seat-1);
   --player-b: var(--seat-2);
@@ -101,9 +103,10 @@
   --card: oklch(0.205 0.007 260);
   --popover: oklch(0.225 0.008 260);
 
-  --seat-1: oklch(0.72 0.1 240);
-  --seat-2: oklch(0.71 0.13 18);
-  --seat-3: oklch(0.74 0.11 155);
+  /* Same hues stepped for the dark surface, validated against it. */
+  --seat-1: #3987e5;
+  --seat-2: #e66767;
+  --seat-3: #17a190;
   --on-seat: oklch(0.18 0.006 260);
 
   --gold: oklch(0.8 0.11 80);

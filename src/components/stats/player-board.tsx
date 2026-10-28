@@ -12,6 +12,8 @@ interface PlayerBoardProps {
   rows: PlayerBoardRow[];
   elo: Map<string, EloPlayer>;
   meId: string | null;
+  /** Inside the visual board's "table view": no card, title or note of its own. */
+  bare?: boolean;
 }
 
 interface Line {
@@ -29,7 +31,7 @@ const avg = (v: number | null) => fmt(v, 1);
 const rate = (v: number | null) => pct(v, 0);
 
 /** Everyone side by side: per-game averages are fair even when players played different numbers of games. */
-export async function PlayerBoard({ rows, elo, meId }: PlayerBoardProps) {
+export async function PlayerBoard({ rows, elo, meId, bare = false }: PlayerBoardProps) {
   const t = await getT();
   const sections: Array<{ title: string; lines: Line[] }> = [
     {
@@ -64,13 +66,13 @@ export async function PlayerBoard({ rows, elo, meId }: PlayerBoardProps) {
   ];
 
   return (
-    <section aria-labelledby="board-heading" className="panel overflow-hidden">
-      <div className="px-4 pt-4 sm:px-6 sm:pt-5">
-        <h2 id="board-heading" className="text-sm font-semibold">
-          {t("board.title")}
-        </h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">{t("board.sub")}</p>
-      </div>
+    <section aria-label={t("board.title")} className={cn(!bare && "panel", "overflow-hidden")}>
+      {!bare && (
+        <div className="px-4 pt-4 sm:px-6 sm:pt-5">
+          <h2 className="text-sm font-semibold">{t("board.title")}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("board.sub")}</p>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="mt-3 w-full min-w-[20rem] text-sm">
           <thead>
@@ -112,10 +114,10 @@ export async function PlayerBoard({ rows, elo, meId }: PlayerBoardProps) {
                         return (
                           <td
                             key={r.player.id}
-                            className={cn("px-1 py-2 text-right tabular last:pr-4 sm:last:pr-6", lead ? "font-semibold" : "text-foreground/80")}
-                            style={lead ? { color: seatColor(r.player.seat) } : undefined}
+                            className={cn("px-1 py-2 text-right tabular last:pr-4 sm:last:pr-6", lead ? "font-semibold text-foreground" : "text-muted-foreground")}
                           >
                             {line.format(values[i])}
+                            {lead && <span className="sr-only"> ({t("board.best")})</span>}
                           </td>
                         );
                       })}
@@ -127,7 +129,7 @@ export async function PlayerBoard({ rows, elo, meId }: PlayerBoardProps) {
           </tbody>
         </table>
       </div>
-      <p className="px-4 py-3 text-xs text-muted-foreground sm:px-6">{t("board.note")}</p>
+      {!bare && <p className="px-4 py-3 text-xs text-muted-foreground sm:px-6">{t("board.note")}</p>}
     </section>
   );
 }
