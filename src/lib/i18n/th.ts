@@ -56,7 +56,7 @@ export const th: Record<keyof typeof en, string> = {
   "stat.successful_passes": "จ่ายสำเร็จ",
   "stat.crosses": "เปิดบอล",
   "stat.interceptions": "ตัดบอล",
-  "stat.tackles": "แท็กเกิล",
+  "stat.tackles": "สกัดบอล",
   "stat.saves": "เซฟ",
   "stat.penalties": "จุดโทษ",
 
@@ -210,7 +210,6 @@ export const th: Record<keyof typeof en, string> = {
 
   "card.match": "แมตช์ #{n}",
   "card.draw": "เสมอ",
-  "card.played": "{name} อยู่ฝั่ง{side}",
 
   "detail.title": "แมตช์",
   "detail.back": "ประวัติแมตช์",
@@ -323,6 +322,7 @@ export const th: Record<keyof typeof en, string> = {
   "assign.rightQ": "…แล้วใครเล่นฝั่งขวา?",
   "assign.leftPlayer": "ผู้เล่นฝั่งซ้าย",
   "assign.rightPlayer": "ผู้เล่นฝั่งขวา",
+  "assign.swap": "สลับผู้เล่นซ้าย ↔ ขวา",
   "assign.note": "ชื่อบนจอและทีมเปลี่ยนได้ทุกแมตช์ ระบบจึงนับผลให้ผู้เล่นตามที่เลือกตรงนี้เท่านั้น",
 
   "editor.label": "ชื่อบนจอ",
@@ -382,6 +382,18 @@ export const th: Record<keyof typeof en, string> = {
   "stats.emptyTitle": "ไม่มีแมตช์ในช่วงนี้",
   "stats.emptyBody": "กราฟใช้เฉพาะแมตช์ที่ยืนยันแล้ว ลองเลือกช่วงให้กว้างขึ้นหรืออัปโหลดแมตช์",
   "stats.noPlayers": "ต้องมีผู้เล่นอย่างน้อย 2 คน กราฟจะแสดงเมื่อมีแมตช์",
+  "stats.everyone": "ทุกคน",
+  "board.title": "เทียบสถิติทุกคน",
+  "board.sub": "ค่าเฉลี่ยต่อเกมจากทุกคู่แข่ง ยุติธรรมกว่ายอดรวมเพราะแต่ละคนเล่นไม่เท่ากัน",
+  "board.stat": "สถิติ",
+  "board.overview": "ภาพรวม",
+  "board.games": "แข่ง",
+  "board.goalsFor": "ยิงได้ / เกม",
+  "board.goalsAgainst": "เสียประตู / เกม",
+  "board.cleanSheets": "อัตราคลีนชีต",
+  "board.perGame": "ค่าเฉลี่ยต่อเกม",
+  "board.rates": "อัตรา",
+  "board.note": "ค่าเฉลี่ยคิดเฉพาะเกมที่มีสถิตินั้น (ช่องที่ไม่มีข้อมูลไม่นับเป็น 0) ตัวเลขที่มีสีคือดีที่สุดของแถว ส่วนฟาวล์ ล้ำหน้า และเสียประตู ยิ่งน้อยยิ่งดี",
   "stats.choosePair": "เลือกคู่",
   "range.label": "ช่วงเวลา",
   "range.all": "ทั้งหมด",

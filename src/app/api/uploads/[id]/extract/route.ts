@@ -34,7 +34,12 @@ function chooseLabel(candidates: LabelCandidate[], known: KnownLabel[]) {
   const match = matchKnownLabel(candidates.map((c) => c.text), known);
   if (match) return { label: match.label, match };
   const latin = candidates.find((c) => c.lang === "eng");
-  return { label: latin ? trustedLatinLabel(latin.text, latin.confidence) : null, match: null };
+  const thai = candidates.find((c) => c.lang === "tha");
+  // A Thai name run through the Latin model comes out as confident garbage ("Kau"); if the
+  // Thai model is at least as sure, the name is Thai, so don't save or learn the Latin read.
+  const looksThai = thai !== undefined && /[\u0E00-\u0E7F]/.test(thai.text);
+  if (!latin || (looksThai && thai.confidence >= latin.confidence)) return { label: null, match: null };
+  return { label: trustedLatinLabel(latin.text, latin.confidence), match: null };
 }
 
 /**

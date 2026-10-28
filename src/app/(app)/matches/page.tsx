@@ -7,6 +7,7 @@ import { HistoryFilters } from "@/components/matches/history-filters";
 import { MatchCard } from "@/components/matches/match-card";
 import { Button } from "@/components/ui/button";
 import { parseHistoryQuery, queryHistory } from "@/lib/domain/history";
+import { seasonalEloChanges } from "@/lib/domain/rating";
 import { getT } from "@/lib/i18n/server";
 import { asUser, requirePageContext, loadMatches } from "@/lib/server/context";
 
@@ -22,6 +23,7 @@ export default async function MatchesPage({ searchParams }: PageProps<"/matches"
   const all = await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id));
   const query = parseHistoryQuery(params);
   const page = queryHistory(all, roster, query);
+  const elo = seasonalEloChanges(all, roster.map((p) => p.id), ctx.rivalry!.season_epoch);
 
   const pageHref = (n: number) => {
     const sp = new URLSearchParams();
@@ -69,7 +71,7 @@ export default async function MatchesPage({ searchParams }: PageProps<"/matches"
           <ul className="grid gap-3 md:grid-cols-2">
             {page.items.map((m) => (
               <li key={m.id}>
-                <MatchCard match={m} roster={roster} />
+                <MatchCard match={m} roster={roster} elo={elo.get(m.id) ?? null} />
               </li>
             ))}
           </ul>

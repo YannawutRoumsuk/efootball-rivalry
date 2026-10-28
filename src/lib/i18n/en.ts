@@ -221,7 +221,6 @@ export const en = {
 
   "card.match": "Match #{n}",
   "card.draw": "Draw",
-  "card.played": "{name} played {side}",
 
   // Match detail
   "detail.title": "Match",
@@ -338,6 +337,7 @@ export const en = {
   "assign.rightQ": "…and on the RIGHT side?",
   "assign.leftPlayer": "Left player",
   "assign.rightPlayer": "Right player",
+  "assign.swap": "Swap players between left and right",
   "assign.note": "On-screen names and teams change between matches, so results are linked to real players only by this choice.",
 
   // Stats editor
@@ -403,6 +403,18 @@ export const en = {
   "stats.emptyBody": "Charts use confirmed matches only. Try a wider range or upload a match.",
   "stats.noPlayers": "At least two players are needed — charts appear once matches are saved.",
   "stats.choosePair": "Choose a pair",
+  "stats.everyone": "Everyone",
+  "board.title": "Everyone compared",
+  "board.sub": "Per-game averages across all opponents — fairer than totals when people play different numbers of games.",
+  "board.stat": "Stat",
+  "board.overview": "Overview",
+  "board.games": "Games",
+  "board.goalsFor": "Goals scored / game",
+  "board.goalsAgainst": "Goals conceded / game",
+  "board.cleanSheets": "Clean-sheet rate",
+  "board.perGame": "Per game (average)",
+  "board.rates": "Rates",
+  "board.note": "Averages only use games where the stat was recorded (missing is never counted as 0). The coloured value is the best in the row; for fouls, offsides and goals conceded lower is better.",
   "range.label": "Range",
   "range.all": "All time",
   "range.last5": "Last 5",

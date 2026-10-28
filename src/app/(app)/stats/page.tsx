@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { SeasonPicker } from "@/components/league/season-picker";
 import { PairScope, seatColor } from "@/components/player/seat-scope";
 import { StatsCharts } from "@/components/stats/charts";
+import { PlayerBoard } from "@/components/stats/player-board";
 import { PointsRace } from "@/components/stats/points-race";
 import { RangeFilter } from "@/components/stats/range-filter";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { allPairs, matchesBetween, pairFor, pointsTimeline, resolvePair, type Po
 import { listSeasons, matchesInScope, parseScope, type Scope } from "@/lib/domain/seasons";
 import { hrefWith } from "@/lib/url";
 import { officialMatches, toPerspectives } from "@/lib/domain/match";
+import { playerBoard } from "@/lib/domain/player-stats";
 import { summarizeRivalry } from "@/lib/domain/stats";
 import { applyRange, buildTimeline, parseRange } from "@/lib/domain/timeline";
 import { pct } from "@/lib/format";
@@ -21,7 +23,7 @@ import { getT } from "@/lib/i18n/server";
 import { asUser, requirePageContext, loadMatches } from "@/lib/server/context";
 
 export async function generateMetadata() {
-  return { title: (await getT())("stats.title") };
+  return { title: (await getT())("nav.stats") };
 }
 
 export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
@@ -48,39 +50,39 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
     for (const p of roster) point[`p${p.seat}`] = Math.round(pt.ratings[p.id]);
     return point;
   });
+  const leagueMatches = officialMatches(everything);
+  // Default for a 3-player group: everyone side by side. A pair chip switches to the head-to-head view.
+  const boardView = roster.length > 2 && !str("pair");
   const [x, y] = resolvePair(str("pair"), roster, everything, ctx.me?.id ?? null)!;
   const pair = pairFor(roster, x.id, y.id);
   const all = toPerspectives(matchesBetween(everything, x.id, y.id), pair);
   const { matches, undatedExcluded } = applyRange(all, range);
-  const leagueMatches = officialMatches(everything);
-  const pairHref = (key: string) => {
-    const sp = new URLSearchParams();
-    for (const k of ["range", "from", "to", "season"]) if (str(k)) sp.set(k, str(k)!);
-    sp.set("pair", key);
-    return `/stats?${sp.toString()}`;
-  };
-  const selectedKey = `${pair.seats[0]}-${pair.seats[1]}`;
+  const selectedKey = boardView ? null : `${pair.seats[0]}-${pair.seats[1]}`;
   const s = summarizeRivalry(matches);
   const points = buildTimeline(matches);
+  const chip = (active: boolean) =>
+    `flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors ${active ? "border-foreground bg-accent" : "hover:border-foreground/30"}`;
+  const leagueCharts = leagueMatches.length > 0 && (
+    <>
+      <PointsRace kind="elo" points={eloPoints} players={players} />
+      {roster.length > 2 && <PointsRace points={pointsTimeline(everything, roster)} players={players} />}
+    </>
+  );
 
   return (
     <div className="space-y-6">
       <SeasonPicker seasons={seasons} scope={scope} hrefs={seasonHrefs} />
-      {leagueMatches.length > 0 && <PointsRace kind="elo" points={eloPoints} players={players} />}
-      {roster.length > 2 && leagueMatches.length > 0 && <PointsRace points={pointsTimeline(everything, roster)} players={players} />}
+      {scope === "all" && <p className="text-xs text-muted-foreground">{t("season.allNote")}</p>}
       {roster.length > 2 && (
         <nav aria-label={t("stats.choosePair")} className="flex flex-wrap gap-2">
+          <Link href={hrefWith("/stats", params, { pair: null })} scroll={false} aria-current={boardView ? "true" : undefined} className={chip(boardView)}>
+            {t("stats.everyone")}
+          </Link>
           {allPairs(roster).map(([pa, pb]) => {
             const key = `${pa.seat}-${pb.seat}`;
             const active = key === selectedKey;
             return (
-              <Link
-                key={key}
-                href={pairHref(key)}
-                scroll={false}
-                aria-current={active ? "true" : undefined}
-                className={`flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors ${active ? "border-foreground bg-accent" : "hover:border-foreground/30"}`}
-              >
+              <Link key={key} href={hrefWith("/stats", params, { pair: key })} scroll={false} aria-current={active ? "true" : undefined} className={chip(active)}>
                 <span style={{ color: seatColor(pa.seat) }}>{pa.display_name}</span>
                 <span className="text-xs font-normal text-muted-foreground">{t("common.vs")}</span>
                 <span style={{ color: seatColor(pb.seat) }}>{pb.display_name}</span>
@@ -89,6 +91,16 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
           })}
         </nav>
       )}
+      {boardView ? (
+        <>
+          {leagueMatches.length === 0 ? (
+            <EmptyState icon={BarChart3} title={t("stats.emptyTitle")} description={t("stats.emptyBody")} />
+          ) : (
+            <PlayerBoard rows={playerBoard(everything, roster)} elo={computeElo(everything, roster.map((p) => p.id)).players} meId={ctx.me?.id ?? null} />
+          )}
+          {leagueCharts}
+        </>
+      ) : (
       <PairScope seats={pair.seats}>
       <div className="space-y-6">
       <PageHeader
@@ -159,6 +171,8 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
       )}
       </div>
       </PairScope>
+      )}
+      {!boardView && leagueCharts}
     </div>
   );
 }

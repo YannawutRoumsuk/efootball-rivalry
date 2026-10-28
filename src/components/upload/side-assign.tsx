@@ -88,7 +88,17 @@ export function SideAssign({ left, right, roster, meId, leftPlayer, rightPlayer,
           { label: t("common.Right"), side: right, p: rp },
         ].map((col) =>
           col === null ? (
-            <ArrowLeftRight key="mid" className="size-5 text-muted-foreground" aria-hidden />
+            <button
+              key="mid"
+              type="button"
+              disabled={!leftPlayer && !rightPlayer}
+              onClick={() => onChange({ leftPlayer: rightPlayer, rightPlayer: leftPlayer })}
+              aria-label={t("assign.swap")}
+              title={t("assign.swap")}
+              className="flex size-10 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-40"
+            >
+              <ArrowLeftRight className="size-5" aria-hidden />
+            </button>
           ) : (
             <div key={col.label} className="min-w-0">
               <p className="eyebrow">{col.label}</p>
