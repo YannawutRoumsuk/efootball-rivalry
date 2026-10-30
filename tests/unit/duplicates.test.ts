@@ -4,20 +4,16 @@ import {
   dhashFromGrayscale,
   findImageDuplicates,
   hammingDistanceHex,
-  isLikelySameMatch,
+  isSameMatchSameDay,
+  MIN_COMPARED_STATS,
 } from "@/lib/domain/duplicates";
+import type { MatchSide } from "@/lib/domain/types";
 import { PAIR, match, side } from "./fixtures";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
-function gradient(seed: number): Uint8Array {
-  const px = new Uint8Array(72);
-  for (let i = 0; i < 72; i += 1) px[i] = (i * 37 + seed * 11) % 256;
-  return px;
-}
-
 describe("(8) duplicate image detection", () => {
-  it("flags an identical SHA-256 hash", () => {
+  it("flags the exact same screenshot file (SHA-256)", () => {
     const dupes = findImageDuplicates({ imageHash: sha("img-1"), perceptualHash: null }, [
       { matchId: "m-1", imageHash: sha("img-1"), perceptualHash: null },
       { matchId: "m-2", imageHash: sha("img-2"), perceptualHash: null },
@@ -25,65 +21,76 @@ describe("(8) duplicate image detection", () => {
     expect(dupes).toEqual([{ matchId: "m-1", reason: "identical_image", distance: 0 }]);
   });
 
-  it("flags a near-identical perceptual hash (re-saved / re-compressed screenshot)", () => {
-    const base = gradient(1);
-    const tweaked = Uint8Array.from(base);
-    tweaked[10] = (tweaked[10] + 200) % 256; // small local change
-    const h1 = dhashFromGrayscale(base);
-    const h2 = dhashFromGrayscale(tweaked);
-    expect(h1).toMatch(/^[0-9a-f]{16}$/);
-    expect(hammingDistanceHex(h1, h2)).toBeLessThanOrEqual(2);
-
-    const dupes = findImageDuplicates({ imageHash: sha("new"), perceptualHash: h2 }, [
-      { matchId: "m-1", imageHash: sha("old"), perceptualHash: h1 },
-    ]);
-    expect(dupes[0]).toMatchObject({ matchId: "m-1", reason: "similar_image" });
-  });
-
-  it("does not flag different screenshots or uploads not attached to a match", () => {
-    const dupes = findImageDuplicates({ imageHash: sha("a"), perceptualHash: "0000000000000000" }, [
-      { matchId: "m-1", imageHash: sha("b"), perceptualHash: "ffffffffffffffff" },
-      { matchId: null, imageHash: sha("a"), perceptualHash: "0000000000000000" },
+  it("no longer flags merely similar-looking screenshots (every Full Time screen looks alike)", () => {
+    const px = new Uint8Array(72).map((_, i) => (i * 37) % 256);
+    const h = dhashFromGrayscale(px);
+    const dupes = findImageDuplicates({ imageHash: sha("new"), perceptualHash: h }, [
+      { matchId: "m-1", imageHash: sha("old"), perceptualHash: h },
     ]);
     expect(dupes).toEqual([]);
   });
 
-  it("computes hamming distance", () => {
+  it("ignores uploads not attached to a match, and computes hamming distance", () => {
+    expect(findImageDuplicates({ imageHash: sha("a"), perceptualHash: null }, [{ matchId: null, imageHash: sha("a"), perceptualHash: null }])).toEqual([]);
     expect(hammingDistanceHex("00", "ff")).toBe(8);
     expect(hammingDistanceHex("a0", "a1")).toBe(1);
   });
 });
 
-describe("match-data duplicate detection", () => {
-  const stats = { shots: 22, shots_on_target: 17, passes: 222, successful_passes: 187, fouls: 2, tackles: 19 };
-  const existing = match(1, 13, 0, { a: stats, b: { shots: 5, shots_on_target: 2 } });
+describe("same match uploaded twice on the same day", () => {
+  // Fixture matches are recorded on 1 Jan 2026 (Bangkok); "now" is that same day.
+  const TODAY = new Date("2026-01-01T05:00:00Z");
+  const NEXT_DAY = new Date("2026-01-02T05:00:00Z");
 
-  it("flags the same score with the same detailed stats", () => {
-    const cand = [side("a", "left", { goals: 13, ...stats }), side("b", "right", { goals: 0, shots: 5, shots_on_target: 2 })] as const;
-    expect(isLikelySameMatch(cand, null, existing)).toBe(true);
-  });
-
-  it("does NOT flag a different match that merely has the same score", () => {
-    const cand = [
-      side("a", "left", { goals: 13, shots: 30, shots_on_target: 20, passes: 300, successful_passes: 250, fouls: 1, tackles: 8 }),
-      side("b", "right", { goals: 0, shots: 3, shots_on_target: 1 }),
+  const full = {
+    possession_pct: 54, shots: 6, shots_on_target: 5, fouls: 3, offsides: 1, corners: 0, free_kicks: 1,
+    passes: 212, successful_passes: 184, crosses: 0, interceptions: 30, tackles: 15, saves: 3,
+  };
+  const other = {
+    possession_pct: 46, shots: 7, shots_on_target: 5, fouls: 1, offsides: 1, corners: 1, free_kicks: 3,
+    passes: 140, successful_passes: 97, crosses: 5, interceptions: 25, tackles: 18, saves: 0,
+  };
+  const existing = match(1, 5, 2, { a: { ...full, onscreen_label: "KynGian" }, b: { ...other, onscreen_label: "หีอุ่น" } });
+  const candidate = (left: Partial<MatchSide> = {}, right: Partial<MatchSide> = {}) =>
+    [
+      side("a", "left", { goals: 5, ...full, onscreen_label: "KynGian", ...left }),
+      side("b", "right", { goals: 2, ...other, onscreen_label: "หีอุ่น", ...right }),
     ] as const;
-    expect(isLikelySameMatch(cand, null, existing)).toBe(false);
+
+  it("flags it when names, score and every stat match", () => {
+    expect(isSameMatchSameDay(candidate(), existing, TODAY)).toBe(true);
   });
 
-  it("does NOT flag when goals belong to the other player", () => {
-    const cand = [side("b", "left", { goals: 13, ...stats }), side("a", "right", { goals: 0 })] as const;
-    expect(isLikelySameMatch(cand, null, existing)).toBe(false);
+  it("does not flag a match recorded on another day", () => {
+    expect(isSameMatchSameDay(candidate(), existing, NEXT_DAY)).toBe(false);
   });
 
-  it("with no stats, needs the same labels and date to flag", () => {
-    const bare = match(2, 2, 1, { playedAt: "2026-10-01T12:00:00.000Z", a: { onscreen_label: "KynGian" }, b: { onscreen_label: "Real Madrid" } });
-    const cand = [
-      side("a", "left", { goals: 2, onscreen_label: "kyngian" }),
-      side("b", "right", { goals: 1, onscreen_label: "Real Madrid" }),
-    ] as const;
-    expect(isLikelySameMatch(cand, "2026-10-01T12:00:00.000Z", bare)).toBe(true);
-    expect(isLikelySameMatch(cand, "2026-10-02T12:00:00.000Z", bare)).toBe(false);
-    expect(PAIR.a.id).toBe(cand[0].player_id);
+  it("does not flag different names or a different score", () => {
+    expect(isSameMatchSameDay(candidate({ onscreen_label: "TheWinner" }), existing, TODAY)).toBe(false);
+    expect(isSameMatchSameDay(candidate({ goals: 4 }), existing, TODAY)).toBe(false);
+    expect(isSameMatchSameDay(candidate({ penalties: 4 }, { penalties: 3 }), existing, TODAY)).toBe(false);
+  });
+
+  it("does not flag when any single stat differs, checked in screen order", () => {
+    for (const key of Object.keys(full) as Array<keyof typeof full>) {
+      expect(isSameMatchSameDay(candidate({ [key]: full[key] + 1 }), existing, TODAY), key).toBe(false);
+    }
+    expect(isSameMatchSameDay(candidate({}, { saves: 9 }), existing, TODAY)).toBe(false);
+  });
+
+  it("compares by screen side, so the same screenshot saved with players swapped is still caught", () => {
+    const swapped = candidate().map((s) => ({ ...s, player_id: s.player_id === PAIR.a.id ? PAIR.b.id : PAIR.a.id })) as unknown as ReturnType<typeof candidate>;
+    expect(isSameMatchSameDay(swapped, existing, TODAY)).toBe(true);
+  });
+
+  it("skips names or stats that one of the two didn't record", () => {
+    expect(isSameMatchSameDay(candidate({ onscreen_label: null, crosses: null }), existing, TODAY)).toBe(true);
+  });
+
+  it("never flags on a score alone (too few stats to be sure)", () => {
+    const bare = match(2, 1, 0);
+    const cand = [side("a", "left", { goals: 1 }), side("b", "right", { goals: 0 })] as const;
+    expect(MIN_COMPARED_STATS).toBeGreaterThan(0);
+    expect(isSameMatchSameDay(cand, bare, TODAY)).toBe(false);
   });
 });

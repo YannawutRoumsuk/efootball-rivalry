@@ -3,7 +3,7 @@ import "server-only";
 import type { Tx } from "@/lib/db";
 import {
   findImageDuplicates,
-  isLikelySameMatch,
+  isSameMatchSameDay,
   type DuplicateCandidate,
   type UploadFingerprint,
 } from "@/lib/domain/duplicates";
@@ -25,10 +25,7 @@ export async function loadUploadFingerprint(tx: Tx, uploadId: string): Promise<I
   return row ? { imageHash: row.image_hash, perceptualHash: row.perceptual_hash } : null;
 }
 
-const IMAGE_DETAIL = {
-  identical_image: "This exact screenshot was already used",
-  similar_image: "A nearly identical screenshot was already used",
-} as const;
+const IMAGE_DETAIL = { identical_image: "This exact screenshot was already used" } as const;
 
 export function imageDuplicateCandidates(
   target: ImageFingerprint,
@@ -42,7 +39,10 @@ export function imageDuplicateCandidates(
   });
 }
 
-/** Image + data duplicate check against every saved (non-void) match. */
+/**
+ * Duplicate check against saved (non-void) matches: the exact same screenshot
+ * file, or a match recorded today with the same names, score and every stat.
+ */
 export async function findDuplicates(
   tx: Tx,
   rivalryId: string,
@@ -53,6 +53,7 @@ export async function findDuplicates(
     playedAt: string | null;
     excludeMatchId?: string | null;
   },
+  now: Date = new Date(),
 ): Promise<DuplicateCandidate[]> {
   const candidates = new Map<string, DuplicateCandidate>();
   const live = matches.filter((m) => m.status !== "void" && m.id !== input.excludeMatchId);
@@ -65,13 +66,13 @@ export async function findDuplicates(
   const sides = input.sides as unknown as readonly [MatchSide, MatchSide];
   for (const m of live) {
     if (candidates.has(m.id)) continue;
-    if (isLikelySameMatch(sides, input.playedAt, m)) {
+    if (isSameMatchSameDay(sides, m, now)) {
       candidates.set(m.id, {
         matchId: m.id,
         matchNo: m.match_no,
         status: m.status,
         reason: "same_stats",
-        detail: "Same players, same score and matching statistics",
+        detail: "Recorded today with the same names, score and every statistic",
       });
     }
   }

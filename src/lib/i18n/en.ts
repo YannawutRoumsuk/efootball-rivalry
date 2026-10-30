@@ -369,9 +369,8 @@ export const en = {
   // Duplicates
   "dup.title": "Possible duplicate",
   "dup.identical_image": "This exact screenshot was already used",
-  "dup.similar_image": "A nearly identical screenshot was already used",
-  "dup.same_stats": "Same players, same score and matching statistics",
-  "dup.note": "A matching score alone is never treated as a duplicate. Save anyway only if this really is a different match.",
+  "dup.same_stats": "Already recorded today with the same names, score and every statistic",
+  "dup.note": "Flagged only for the exact same screenshot file, or a match recorded today with the same names, score and every statistic. Save anyway only if this really is a different match.",
 
   // Batch import
   "batch.eyebrow": "History",

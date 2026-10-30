@@ -1,7 +1,5 @@
-import { STAT_KEYS, type Match, type SideStats } from "./types";
-
-/** dHash distance at or below this is treated as "probably the same screenshot". */
-export const SIMILAR_IMAGE_MAX_DISTANCE = 6;
+import { normalizeLabel } from "@/lib/ocr/labels";
+import { STAT_KEYS, type Match, type ScreenSide, type SideStats } from "./types";
 
 /**
  * Difference hash: compares each pixel with its right neighbour on a
@@ -37,7 +35,7 @@ export function hammingDistanceHex(a: string, b: string): number {
   return distance;
 }
 
-export type DuplicateReason = "identical_image" | "similar_image" | "same_stats";
+export type DuplicateReason = "identical_image" | "same_stats";
 
 export interface DuplicateCandidate {
   matchId: string;
@@ -53,23 +51,20 @@ export interface UploadFingerprint {
   perceptualHash: string | null;
 }
 
-/** Image-level duplicates: exact SHA-256 match, or near-identical dHash. */
+/**
+ * Image-level duplicates: only the exact same file (SHA-256). Look-alike
+ * screenshots are NOT flagged: every Full Time screen has the same layout, so
+ * different matches between the same teams look nearly identical. Those are
+ * told apart by their stats instead (isSameMatchSameDay).
+ */
 export function findImageDuplicates(
   target: { imageHash: string; perceptualHash: string | null },
   existing: readonly UploadFingerprint[],
-): Array<{ matchId: string; reason: "identical_image" | "similar_image"; distance: number }> {
-  const out = new Map<string, { matchId: string; reason: "identical_image" | "similar_image"; distance: number }>();
+): Array<{ matchId: string; reason: "identical_image"; distance: number }> {
+  const out = new Map<string, { matchId: string; reason: "identical_image"; distance: number }>();
   for (const up of existing) {
-    if (!up.matchId) continue;
-    if (up.imageHash === target.imageHash) {
+    if (up.matchId && up.imageHash === target.imageHash) {
       out.set(up.matchId, { matchId: up.matchId, reason: "identical_image", distance: 0 });
-      continue;
-    }
-    if (target.perceptualHash && up.perceptualHash && !out.has(up.matchId)) {
-      const distance = hammingDistanceHex(target.perceptualHash, up.perceptualHash);
-      if (distance <= SIMILAR_IMAGE_MAX_DISTANCE) {
-        out.set(up.matchId, { matchId: up.matchId, reason: "similar_image", distance });
-      }
     }
   }
   return [...out.values()];
@@ -77,47 +72,66 @@ export function findImageDuplicates(
 
 interface CandidateSide extends SideStats {
   player_id: string;
+  screen_side: ScreenSide;
   onscreen_label: string | null;
+  team_name: string | null;
   penalties?: number | null;
 }
 
+/** A real Full Time screenshot has 26 stat values; fewer than this compared and we can't be sure. */
+export const MIN_COMPARED_STATS = 8;
+
+const BANGKOK_OFFSET_MS = 7 * 3_600_000;
+const bangkokDay = (d: Date) => new Date(d.getTime() + BANGKOK_OFFSET_MS).toISOString().slice(0, 10);
+
+/** Both recorded → must match (ignoring case, spaces, punctuation); either missing → no evidence. */
+function sameName(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = a ? normalizeLabel(a) : "";
+  const y = b ? normalizeLabel(b) : "";
+  return !x || !y || x === y;
+}
+
 /**
- * Data-level duplicate check. A shared score alone is never enough: the same
- * players must have the same goals AND most reported stats must be identical
- * (or, with no stats to compare, the same labels and date).
+ * "Was this exact match already uploaded today?" Only matches recorded the
+ * same day (Bangkok time) as `now` are considered. Sides are compared by
+ * screen position (left with left), not by which player was picked, so the
+ * same screenshot saved with the players swapped is still caught.
+ *
+ *   1. names on screen (on-screen label and team) and the score, penalties
+ *      included, must be the same on both sides;
+ *   2. then every stat, in screen order — possession, shots, shots on target,
+ *      fouls, … saves — must be identical on both sides.
+ *
+ * Values missing on either record are skipped; at least MIN_COMPARED_STATS
+ * must actually be compared, so a bare score never counts as a duplicate.
  */
-export function isLikelySameMatch(
-  candidate: readonly [CandidateSide, CandidateSide],
-  candidatePlayedAt: string | null,
-  existing: Match,
-): boolean {
-  for (const side of candidate) {
-    const other = existing.sides.find((s) => s.player_id === side.player_id);
-    if (!other || other.goals !== side.goals) return false;
-    if ((other.penalties ?? null) !== (side.penalties ?? null)) return false;
+export function isSameMatchSameDay(candidate: readonly [CandidateSide, CandidateSide], existing: Match, now: Date): boolean {
+  if (bangkokDay(new Date(existing.created_at)) !== bangkokDay(now)) return false;
+
+  const pairs = (["left", "right"] as const).map((pos) => {
+    const mine = candidate.find((s) => s.screen_side === pos);
+    const theirs = existing.sides.find((s) => s.screen_side === pos);
+    return mine && theirs ? ([mine, theirs] as const) : null;
+  });
+  if (pairs.some((p) => p === null)) return false;
+  const sides = pairs as Array<readonly [CandidateSide, Match["sides"][number]]>;
+
+  // 1) Names and score first.
+  for (const [mine, theirs] of sides) {
+    if (!sameName(mine.onscreen_label, theirs.onscreen_label) || !sameName(mine.team_name, theirs.team_name)) return false;
+    if (mine.goals !== theirs.goals || (mine.penalties ?? null) !== (theirs.penalties ?? null)) return false;
   }
 
+  // 2) Then each stat in screen order; the first difference means a different match.
   let compared = 0;
-  let equal = 0;
-  for (const side of candidate) {
-    const other = existing.sides.find((s) => s.player_id === side.player_id)!;
-    for (const key of STAT_KEYS) {
-      if (side[key] === null || other[key] === null) continue;
+  for (const key of STAT_KEYS) {
+    for (const [mine, theirs] of sides) {
+      const a = mine[key];
+      const b = theirs[key];
+      if (a === null || b === null) continue;
+      if (Number(a) !== Number(b)) return false;
       compared += 1;
-      if (Number(side[key]) === Number(other[key])) equal += 1;
     }
   }
-
-  if (compared >= 6) return equal / compared >= 0.9;
-
-  const sameLabels = candidate.every((side) => {
-    const other = existing.sides.find((s) => s.player_id === side.player_id)!;
-    return (
-      !!side.onscreen_label &&
-      side.onscreen_label.trim().toLowerCase() === (other.onscreen_label ?? "").trim().toLowerCase()
-    );
-  });
-  const sameDay =
-    !!candidatePlayedAt && !!existing.played_at && candidatePlayedAt.slice(0, 10) === existing.played_at.slice(0, 10);
-  return sameLabels && sameDay;
+  return compared >= MIN_COMPARED_STATS;
 }
