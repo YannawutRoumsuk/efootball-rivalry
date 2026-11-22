@@ -685,7 +685,7 @@ export const en = {
   "squad.ins.above": "{n}% above the team average ({avg})",
   "squad.ins.below": "{n}% below the team average ({avg})",
   "squad.ins.matrix": "Best and worst in every area",
-  "squad.ins.matrixSub": "Green = best in the team, red = lowest. Average per match.",
+  "squad.ins.matrixSub": "Crown in the player's colour = best in the team, red = lowest. Average per match.",
   "squad.ins.none": "Needs at least two of us with stats to compare.",
   "squad.ins.fewGames": "Based on {n} match(es) so far — the picture gets more reliable with more matches.",
   "squad.m.shot_accuracy": "Shot accuracy",

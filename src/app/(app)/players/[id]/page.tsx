@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import { seatColor } from "@/components/player/seat-scope";
 import { ModePairs, SquadRadar } from "@/components/squad/squad-explorer";
+import { SquadInsights } from "@/components/squad/squad-insights";
 import { computeElo } from "@/lib/domain/elo";
 import { officialMatches, winnerPlayerId } from "@/lib/domain/match";
 import { playerBoard } from "@/lib/domain/player-stats";
 import { matchesInScope, listSeasons, parseScope } from "@/lib/domain/seasons";
-import { RADAR_KEYS, SQUAD_STAT_KEYS, summarizeSquadPlayer, type SquadStatKey } from "@/lib/domain/squad";
+import { RADAR_KEYS, summarizeSquadPlayer } from "@/lib/domain/squad";
 import { COMPARE_METRICS, compareModes } from "@/lib/domain/squad-compare";
 import { fmt, formatMatchDate, pct } from "@/lib/format";
-import type { MessageKey } from "@/lib/i18n/core";
 import { getLocale, getT } from "@/lib/i18n/server";
 import { asUser, isUuid, loadMatches, requirePageContext } from "@/lib/server/context";
 import { loadSquadMatches } from "@/lib/server/squad";
@@ -29,25 +29,6 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
       </dd>
     </div>
   );
-}
-
-/** Stats where this player is furthest above the group's average (3v3, per match). */
-function strengths(playerId: string, summaries: ReturnType<typeof summarizeSquadPlayer>[]): SquadStatKey[] {
-  const me = summaries.find((s) => s.playerId === playerId);
-  if (!me || me.games === 0) return [];
-  const others = summaries.filter((s) => s.playerId !== playerId && s.games > 0);
-  if (others.length === 0) return [];
-  return SQUAD_STAT_KEYS.filter((k) => k !== "total_points")
-    .map((k): { k: SquadStatKey; lift: number | null } => {
-      const mine = me.stats[k].average;
-      const avg = others.map((o) => o.stats[k].average).filter((v): v is number => v !== null);
-      const base = avg.length ? avg.reduce((a, b) => a + b, 0) / avg.length : null;
-      return { k, lift: mine !== null && base !== null && base > 0 ? mine / base : null };
-    })
-    .filter((x): x is { k: SquadStatKey; lift: number } => x.lift !== null && x.lift > 1)
-    .sort((a, b) => b.lift - a.lift)
-    .slice(0, 4)
-    .map((x) => x.k);
 }
 
 export default async function PlayerProfilePage({ params }: PageProps<"/players/[id]">) {
@@ -96,7 +77,9 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
     .map((m) => ({ m, p: m.players.find((x) => x.player_id === id) }))
     .filter((x) => x.p && x.p.stats.total_points != null);
   const best = myLines.sort((a, b) => b.p!.stats.total_points! - a.p!.stats.total_points!)[0];
-  const strong = strengths(id, summaries);
+  const squadPlayers = ctx.roster
+    .filter((p) => summaries.find((s) => s.playerId === p.id)!.games > 0)
+    .map((p) => ({ id: p.id, name: p.display_name, seat: p.seat }));
   const comparison = compareModes([id], board, summaries);
   const radarPlayers = [
     { id, name: player.display_name, seat: player.seat },
@@ -190,18 +173,6 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
                 <SquadRadar players={radarPlayers} values={{ [id]: mine.stats ? Object.fromEntries(RADAR_KEYS.map((k) => [k, mine.stats[k].average])) : {}, team: teamAvg }} className="h-72" />
               </section>
               <div className="space-y-4">
-                {strong.length > 0 && (
-                  <section className="panel p-4">
-                    <h3 className="mb-2 text-sm font-semibold">{t("profile.strengths")}</h3>
-                    <ul className="flex flex-wrap gap-2">
-                      {strong.map((k) => (
-                        <li key={k} className="rounded-full px-3 py-1 text-sm font-semibold" style={{ background: `color-mix(in oklch, ${color} 18%, transparent)`, color }}>
-                          {t(`sq.${k}` as MessageKey)} · {fmt(mine.stats[k].average, 1)}
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
                 {best && (
                   <Link href={`/squad/${best.m.id}`} className="panel block p-4 transition-colors hover:border-foreground/25">
                     <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
@@ -217,6 +188,13 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
                 )}
               </div>
             </div>
+            <section className="panel space-y-3 p-4 sm:p-5">
+              <div>
+                <h3 className="text-sm font-semibold">{t("squad.ins.title")}</h3>
+                <p className="text-xs text-muted-foreground">{t("squad.ins.sub")}</p>
+              </div>
+              <SquadInsights players={squadPlayers} summaries={summaries} onlyId={id} />
+            </section>
           </>
         )}
       </section>

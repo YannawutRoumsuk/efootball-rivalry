@@ -662,7 +662,7 @@ export const th: Record<keyof typeof en, string> = {
   "squad.ins.above": "สูงกว่าค่าเฉลี่ยทีม {n}% (ทีม {avg})",
   "squad.ins.below": "ต่ำกว่าค่าเฉลี่ยทีม {n}% (ทีม {avg})",
   "squad.ins.matrix": "ใครดีสุด / แย่สุดในแต่ละด้าน",
-  "squad.ins.matrixSub": "เขียว = ดีสุดในทีม แดง = ต่ำสุด (ค่าเฉลี่ยต่อแมตช์)",
+  "squad.ins.matrixSub": "มงกุฎสีประจำตัว = ดีสุดในทีม ตัวแดง = ต่ำสุด (ค่าเฉลี่ยต่อแมตช์)",
   "squad.ins.none": "ต้องมีสถิติของพวกเราอย่างน้อย 2 คนถึงจะเทียบได้",
   "squad.ins.fewGames": "ตอนนี้คิดจาก {n} แมตช์ — ยิ่งมีแมตช์มาก ผลยิ่งแม่น",
   "squad.m.shot_accuracy": "ยิงเข้ากรอบ %",
