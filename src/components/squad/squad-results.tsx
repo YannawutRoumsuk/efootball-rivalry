@@ -1,16 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { seatColor } from "@/components/player/seat-scope";
 import {
   goalMargin,
   matchTime,
-  playerByOutcome,
   squadOutcome,
+  summarizeSquadPlayer,
   teamStatsByOutcome,
   type SquadMatch,
   type SquadOutcome,
-  type SquadStatKey,
   type TeamStatKey,
 } from "@/lib/domain/squad";
 import { fmt, pct } from "@/lib/format";
@@ -18,9 +16,9 @@ import { useT } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/core";
 import { cn } from "@/lib/utils";
 import type { ExplorerPlayer } from "./squad-explorer";
+import { SquadInsights } from "./squad-insights";
 
 const TEAM_KEYS: TeamStatKey[] = ["possession_pct", "shots", "shots_on_target", "passes", "successful_passes", "interceptions", "tackles"];
-const PLAYER_KEYS: SquadStatKey[] = ["total_points", "goals", "assists", "shots", "passes", "intercepts", "tackles"];
 const OUTCOME_COLOR: Record<SquadOutcome, string> = {
   W: "var(--color-emerald-500, #10b981)",
   D: "var(--muted-foreground)",
@@ -39,11 +37,11 @@ function Block({ title, sub, children }: { title: string; sub?: string; children
   );
 }
 
-/** Wins and losses: by how much, what the team did, and who played how. */
+/** Wins and losses: by how much and what the team did; then each player's strengths and what to work on. */
 export function ResultsView({ players, matches }: { players: ExplorerPlayer[]; matches: SquadMatch[] }) {
   const t = useT();
   const scored = [...matches].filter((m) => goalMargin(m) !== null).sort((a, b) => matchTime(a) - matchTime(b));
-  if (scored.length === 0) return <p className="text-sm text-muted-foreground">{t("squad.res.none")}</p>;
+  const summaries = players.map((p) => summarizeSquadPlayer(matches, p.id));
   const maxMargin = Math.max(1, ...scored.map((m) => Math.abs(goalMargin(m)!)));
   const team = teamStatsByOutcome(matches, TEAM_KEYS);
   const outcomes: SquadOutcome[] = (["W", "D", "L"] as const).filter((o) => team[o].games > 0);
@@ -51,6 +49,9 @@ export function ResultsView({ players, matches }: { players: ExplorerPlayer[]; m
 
   return (
     <div className="space-y-6">
+      {scored.length === 0 && <p className="text-sm text-muted-foreground">{t("squad.res.none")}</p>}
+      {scored.length > 0 && (
+      <>
       <Block title={t("squad.res.margin")} sub={t("squad.res.marginSub")}>
         <ul className="space-y-1">
           {scored.map((m, i) => {
@@ -125,47 +126,10 @@ export function ResultsView({ players, matches }: { players: ExplorerPlayer[]; m
         </div>
       </Block>
 
-      <Block title={t("squad.res.players")} sub={t("squad.res.playersSub")}>
-        <div className="grid gap-3 md:grid-cols-3">
-          {players.map((p) => {
-            const split = playerByOutcome(matches, p.id);
-            const max = (k: SquadStatKey) => Math.max(0, ...outcomes.map((o) => split[o].stats[k].average ?? 0));
-            return (
-              <figure key={p.id} className="rounded-lg border p-3">
-                <figcaption className="mb-2 flex items-baseline justify-between text-sm font-bold" style={{ color: seatColor(p.seat) }}>
-                  {p.name}
-                  <span className="text-xs font-normal text-muted-foreground">
-                    {outcomes.map((o) => `${t(`outcome.${o}`)} ${split[o].games}`).join(" · ")}
-                  </span>
-                </figcaption>
-                <ul className="space-y-2">
-                  {PLAYER_KEYS.map((k) => (
-                    <li key={k} className="text-xs">
-                      <span className="text-muted-foreground">{t(`sq.${k}` as MessageKey)}</span>
-                      {outcomes.map((o) => {
-                        const v = split[o].stats[k].average;
-                        const m = max(k);
-                        return (
-                          <span key={o} className="mt-0.5 grid grid-cols-[1rem_1fr_2.75rem] items-center gap-1.5">
-                            <span className="font-semibold" style={{ color: OUTCOME_COLOR[o] }}>
-                              {t(`outcome.${o}`)}
-                            </span>
-                            <span className="relative h-2" aria-hidden>
-                              {v !== null && m > 0 && (
-                                <span className="absolute inset-y-0 left-0 min-w-[2px] rounded-r" style={{ width: `${(v / m) * 100}%`, background: OUTCOME_COLOR[o] }} />
-                              )}
-                            </span>
-                            <span className="text-right tabular">{fmt(v, k === "total_points" ? 0 : 1)}</span>
-                          </span>
-                        );
-                      })}
-                    </li>
-                  ))}
-                </ul>
-              </figure>
-            );
-          })}
-        </div>
+      </>
+      )}
+      <Block title={t("squad.ins.title")} sub={t("squad.ins.sub")}>
+        <SquadInsights players={players} summaries={summaries} />
       </Block>
     </div>
   );
