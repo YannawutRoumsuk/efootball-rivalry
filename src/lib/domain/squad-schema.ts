@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isSquadStatKey, rowFor, type SquadStatKey } from "./squad";
+import { isSquadStatKey, rowFor, TEAM_STAT_KEYS, type SquadStatKey } from "./squad";
 
 const statsSchema = z
   .record(z.string(), z.number().int().min(0).nullable())
@@ -11,10 +11,20 @@ const statsSchema = z
 
 const goals = z.number().int().min(0).max(99).nullable();
 
+const teamSideSchema = z
+  .record(z.string(), z.number().int().min(0).max(3000).nullable())
+  .refine((o) => Object.keys(o).every((k) => (TEAM_STAT_KEYS as readonly string[]).includes(k)), "Unknown team statistic.")
+  .refine((o) => o.possession_pct == null || o.possession_pct <= 100, "Possession is a percentage.");
+
+/** Full Time screen: our team and the opponents (1v1 stat keys). */
+export const teamStatsSchema = z.object({ us: teamSideSchema, them: teamSideSchema }).nullable();
+
 /** Body of POST /api/squad/matches and PUT /api/squad/matches/[id]. */
 export const squadMatchSchema = z.object({
   played_at: z.iso.datetime({ offset: true }).nullable(),
   team_name: z.string().trim().max(60).nullable(),
+  opponent_name: z.string().trim().max(60).nullable().default(null),
+  team_stats: teamStatsSchema.default(null),
   goals_for: goals,
   goals_against: goals,
   players: z

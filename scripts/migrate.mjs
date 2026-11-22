@@ -13,7 +13,8 @@ if (!url) {
 
 const dir = fileURLToPath(new URL("../db/migrations/", import.meta.url));
 const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
-const sql = postgres(url, { max: 1, onnotice: () => undefined, connect_timeout: 20 });
+// Migrations report what they did (e.g. data fixes) through RAISE NOTICE.
+const sql = postgres(url, { max: 1, onnotice: (n) => n.code !== "42P07" && console.log(`[migrate] notice: ${n.message}`), connect_timeout: 20 });
 
 try {
   // Thai names and on-screen labels need UTF-8 end to end.

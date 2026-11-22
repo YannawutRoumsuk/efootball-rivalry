@@ -10,6 +10,7 @@ import { categorySum, SQUAD_GROUPS, SQUAD_ROWS, type SquadRow, type SquadSlot, t
 import { useT } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/core";
 import { cn } from "@/lib/utils";
+import { TeamStatsEditor } from "./team-stats-editor";
 
 interface SquadEditorProps {
   draft: EditorDraft;
@@ -43,10 +44,14 @@ export function SquadEditor({ draft, roster, onChange, flagged }: SquadEditorPro
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="space-y-1.5">
           <Label htmlFor="sq-team">{t("squad.team")}</Label>
           <Input id="sq-team" value={draft.team} maxLength={60} onChange={(e) => onChange({ ...draft, team: e.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="sq-opp">{t("squad.opponent")}</Label>
+          <Input id="sq-opp" value={draft.opponent} maxLength={60} onChange={(e) => onChange({ ...draft, opponent: e.target.value })} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="sq-date">{t("squad.playedAt")}</Label>
@@ -61,6 +66,8 @@ export function SquadEditor({ draft, roster, onChange, flagged }: SquadEditorPro
           <Input id="sq-ga" inputMode="numeric" className="tabular" value={draft.goalsAgainst} onChange={(e) => onChange({ ...draft, goalsAgainst: e.target.value.replace(/[^\d]/g, "").slice(0, 2) })} />
         </div>
       </div>
+
+      <TeamStatsEditor draft={draft} onChange={onChange} />
 
       <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <table className="w-full min-w-[34rem] border-separate border-spacing-0 text-sm">

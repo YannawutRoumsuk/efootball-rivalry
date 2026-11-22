@@ -34,6 +34,7 @@ export function SquadMatchCard({ match, roster, t, locale }: { match: SquadMatch
             {match.goals_for}–{match.goals_against}
           </span>
         )}
+        {match.opponent_name && <span className="truncate">{t("common.vs")} {match.opponent_name}</span>}
         <span className="ml-auto">{formatMatchDate(match.played_at ?? match.created_at, locale)}</span>
       </div>
       <ul className="grid grid-cols-3 gap-2">

@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { ApiError } from "@/lib/api/envelope";
 import { handle, ok } from "@/lib/api/server";
 import { jsonb } from "@/lib/db";
-import type { SquadScreenRead } from "@/lib/domain/squad";
+import { TEAM_STAT_KEYS, type SquadScreenRead, type TeamSide } from "@/lib/domain/squad";
+import type { DraftSide } from "@/lib/domain/validation";
+import { readFullTimeScreen, type LabelCandidate } from "@/lib/ocr/fulltime";
 import { readSquadScreen, type SquadOcrResult } from "@/lib/ocr/squad";
 import { asUser, requireRivalry } from "@/lib/server/context";
 import { inspectUpload, MAX_UPLOAD_BYTES } from "@/lib/server/image";
@@ -14,10 +16,19 @@ export const maxDuration = 90;
 
 const OCR_LIMIT_MESSAGE = "Too many screenshots read. Please wait a few minutes.";
 
+/** One side of the Full Time score screen. */
+export interface FullTimeRead {
+  label: string | null;
+  goals: number | null;
+  stats: TeamSide;
+}
+
 export interface SquadUploadResponse {
   uploadId: string;
   imageUrl: string;
   read: SquadScreenRead & { rows: string[]; problems: string[] };
+  /** Set when the screenshot is the Full Time score screen instead of the players table. */
+  fulltime: { left: FullTimeRead; right: FullTimeRead } | null;
   /** A saved 3v3 match that already used this exact image. */
   duplicateOf: string | null;
 }
@@ -74,8 +85,27 @@ export const POST = handle(async (request: Request) => {
     console.error("[squad] OCR failed", err);
     read = { names: [null, null, null], team: null, values: {}, rows: [], problems: ["OCR failed"], ms: 0 };
   }
+  // Not the players table: maybe the Full Time score screen (same layout as 1v1).
+  let fulltime: SquadUploadResponse["fulltime"] = null;
+  if (read.rows.length === 0 && read.problems.includes("no squad stats table found")) {
+    try {
+      const ft = await readFullTimeScreen(buf);
+      const toSide = (side: DraftSide, labels: LabelCandidate[]): FullTimeRead => ({
+        label: labels.find((l) => l.lang === "eng" && l.confidence >= 60)?.text.trim() || null,
+        goals: side.goals,
+        stats: Object.fromEntries(TEAM_STAT_KEYS.map((k) => [k, k === "penalties" ? (side.penalties ?? null) : side[k]])) as TeamSide,
+      });
+      const left = toSide(ft.left, ft.labelCandidates.left);
+      const right = toSide(ft.right, ft.labelCandidates.right);
+      const numbers = Object.values(left.stats).filter((v) => v !== null).length + Object.values(right.stats).filter((v) => v !== null).length;
+      // A real score screen yields the score or most of its 26 numbers.
+      if ((left.goals !== null && right.goals !== null) || numbers >= 12) fulltime = { left, right };
+    } catch (err) {
+      console.error("[squad] Full Time OCR failed", err);
+    }
+  }
   await asUser(userId, (tx) => tx`
-    update public.squad_uploads set extraction_json = ${jsonb(tx, read)}::jsonb where id = ${stored.uploadId}`).catch((err: unknown) =>
+    update public.squad_uploads set extraction_json = ${jsonb(tx, { ...read, fulltime })}::jsonb where id = ${stored.uploadId}`).catch((err: unknown) =>
     console.error("[squad] couldn't store the read", err),
   );
 
@@ -83,6 +113,7 @@ export const POST = handle(async (request: Request) => {
     uploadId: stored.uploadId,
     imageUrl: `/api/squad/screenshots/${stored.uploadId}`,
     read: { names: read.names, team: read.team, values: read.values, rows: read.rows, problems: read.problems },
+    fulltime,
     duplicateOf: stored.duplicateOf,
   };
   return ok(body, 201);

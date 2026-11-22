@@ -7,6 +7,7 @@ import { seatColor } from "@/components/player/seat-scope";
 import { SquadAdminActions } from "@/components/squad/squad-admin";
 import { SquadRadar } from "@/components/squad/squad-explorer";
 import { columnName } from "@/components/squad/squad-match-card";
+import { TeamStatsPanel } from "@/components/squad/team-stats-panel";
 import { leaders } from "@/lib/domain/player-stats";
 import { mvpOf, SQUAD_GROUPS, SQUAD_ROWS, squadOutcome } from "@/lib/domain/squad";
 import { formatMatchDate } from "@/lib/format";
@@ -44,8 +45,15 @@ export default async function SquadMatchPage({ params }: PageProps<"/squad/[id]"
       </Link>
       <PageHeader
         eyebrow={`${t("squad.eyebrow")} · ${formatMatchDate(match.played_at ?? match.created_at, locale)}`}
-        title={`${match.team_name ?? t("squad.match")}${match.goals_for !== null && match.goals_against !== null ? `  ${match.goals_for}–${match.goals_against}` : ""}`}
-        description={outcome ? t(outcome === "W" ? "outcome.win" : outcome === "D" ? "outcome.draw" : "outcome.loss") : undefined}
+        title={`${match.team_name ?? t("squad.match")}${match.goals_for !== null && match.goals_against !== null ? `  ${match.goals_for}–${match.goals_against}` : ""}${match.opponent_name ? `  ${match.opponent_name}` : ""}`}
+        description={
+          outcome ? (
+            <span className="font-semibold" style={{ color: outcome === "W" ? "#10b981" : outcome === "L" ? "#ef4444" : undefined }}>
+              {t(outcome === "W" ? "outcome.win" : outcome === "D" ? "outcome.draw" : "outcome.loss")}
+              {match.team_stats?.us.penalties != null && match.team_stats.them.penalties != null && ` (PK ${match.team_stats.us.penalties}–${match.team_stats.them.penalties})`}
+            </span>
+          ) : undefined
+        }
         actions={ctx.me?.seat === 1 ? <SquadAdminActions matchId={match.id} /> : null}
       />
 
@@ -120,6 +128,9 @@ export default async function SquadMatchPage({ params }: PageProps<"/squad/[id]"
           </table>
         </section>
         <div className="space-y-4">
+          {match.team_stats && (
+            <TeamStatsPanel stats={match.team_stats} us={match.team_name ?? t("squad.ft.us")} them={match.opponent_name ?? t("squad.ft.them")} t={t} />
+          )}
           {radarPlayers.length > 0 && (
             <section className="panel p-4">
               <SquadRadar players={radarPlayers} values={radarValues} className="h-64" />

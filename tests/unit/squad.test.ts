@@ -137,8 +137,10 @@ describe("aggregates", () => {
     id,
     played_at: at,
     team_name: "BVB",
+    opponent_name: null,
     goals_for: gf,
     goals_against: ga,
+    team_stats: null,
     created_at: at,
     players: rows.map(([pid, points, goals], i) => ({
       slot: (i + 1) as 1 | 2 | 3,

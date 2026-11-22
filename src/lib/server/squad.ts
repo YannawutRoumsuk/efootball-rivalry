@@ -10,8 +10,8 @@ interface Row {
 
 const MATCH_JSON = (tx: Tx) => tx`
   jsonb_build_object(
-    'id', m.id, 'played_at', m.played_at, 'team_name', m.team_name,
-    'goals_for', m.goals_for, 'goals_against', m.goals_against, 'created_at', m.created_at,
+    'id', m.id, 'played_at', m.played_at, 'team_name', m.team_name, 'opponent_name', m.opponent_name,
+    'goals_for', m.goals_for, 'goals_against', m.goals_against, 'team_stats', m.team_stats, 'created_at', m.created_at,
     'players', (
       select jsonb_agg(jsonb_build_object('slot', p.slot, 'player_id', p.player_id, 'ingame_name', p.ingame_name, 'stats', p.stats) order by p.slot)
       from public.squad_match_players p where p.squad_match_id = m.id

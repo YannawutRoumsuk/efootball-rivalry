@@ -10,6 +10,7 @@ import {
   columnsToEditor,
   editorToInput,
   saveSquad,
+  teamSideToEditor,
   todayLocal,
   uploadSquadScreenshot,
   type EditorDraft,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/client/squad";
 import { prepareImageFile } from "@/lib/client/upload";
 import type { RosterPlayer } from "@/lib/domain/league";
-import { mergeScreenReads, validateSquadColumns, type NameAlias } from "@/lib/domain/squad";
+import { mergeScreenReads, ourFullTimeSide, validateSquadColumns, type NameAlias } from "@/lib/domain/squad";
 import { useT } from "@/lib/i18n/client";
 import { errorText } from "@/lib/i18n/errors";
 import { SquadEditor } from "./squad-editor";
@@ -49,7 +50,8 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const merged = useMemo(() => mergeScreenReads(shots.map((s) => s.response.read), aliases), [shots, aliases]);
+  const tableShots = useMemo(() => shots.filter((s) => s.response.read.rows.length > 0), [shots]);
+  const merged = useMemo(() => mergeScreenReads(tableShots.map((s) => s.response.read), aliases), [tableShots, aliases]);
   const flagged = useMemo(() => new Set(merged.conflicts.map((c) => `${c.slot}:${c.key}`)), [merged]);
 
   async function addFiles(picked: File[]) {
@@ -66,8 +68,9 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
       setBusy({ i: i + 1, n: files.length });
       try {
         const response = await uploadSquadScreenshot(await prepareImageFile(raw));
-        if (response.read.rows.length === 0) messages.push(t("squad.up.notTable", { i: n }));
+        if (response.read.rows.length === 0 && !response.fulltime) messages.push(t("squad.up.notTable", { i: n }));
         else added.push({ index: n, response });
+        if (response.fulltime) messages.push(t("squad.up.scoreRead", { i: n }));
         if (response.duplicateOf) messages.push(t("squad.up.duplicate", { i: n }));
       } catch (err) {
         messages.push(`#${n}: ${errorText(err, t)}`);
@@ -78,25 +81,52 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
     setShots(all);
     setNotes((prev) => [...prev, ...messages]);
     if (all.length === 0) return;
-    const next = mergeScreenReads(all.map((s) => s.response.read), aliases);
-    // Keep anything the user already typed; fill only cells that are still empty.
+    const next = mergeScreenReads(all.filter((s) => s.response.read.rows.length > 0).map((s) => s.response.read), aliases);
+    const score = [...all].reverse().find((s) => s.response.fulltime)?.response.fulltime ?? null;
+    const ourGoals = next.columns.every((c) => c.stats.goals != null) ? next.columns.reduce((n, c) => n + (c.stats.goals ?? 0), 0) : null;
+    // Keep anything the user already typed; fill only what is still empty.
     setDraft((prev) => {
       const fresh = columnsToEditor(next.columns);
-      if (!prev) {
-        const sum = next.columns.reduce((n, c) => n + (c.stats.goals ?? 0), 0);
-        const allGoals = next.columns.every((c) => c.stats.goals != null);
-        return { team: next.team ?? "", playedOn: todayLocal(), goalsFor: allGoals ? String(sum) : "", goalsAgainst: "", columns: fresh };
-      }
-      return {
-        ...prev,
-        team: prev.team || next.team || "",
-        columns: prev.columns.map((c, i) => ({
+      const base: EditorDraft = prev ?? {
+        team: "",
+        opponent: "",
+        playedOn: todayLocal(),
+        goalsFor: "",
+        goalsAgainst: "",
+        teamUs: {},
+        teamThem: {},
+        columns: fresh,
+      };
+      const team = base.team || next.team || "";
+      let d: EditorDraft = {
+        ...base,
+        team,
+        columns: base.columns.map((c, i) => ({
           ...c,
           ingameName: c.ingameName || fresh[i].ingameName,
           player: c.player || fresh[i].player,
           stats: { ...fresh[i].stats, ...Object.fromEntries(Object.entries(c.stats).filter(([, v]) => v !== "")) },
         })),
       };
+      const hasTable = all.some((s) => s.response.read.rows.length > 0);
+      const detected = score ? ourFullTimeSide(score.left, score.right, team || null, ourGoals) : null;
+      // Without the players table there is nothing to tell our side by: wait for it
+      // (then fall back to left, which "Swap sides" fixes).
+      const side = detected ?? (hasTable ? "left" : null);
+      if (score && side && Object.keys(base.teamUs).length + Object.keys(base.teamThem).length === 0) {
+        const [us, them] = side === "left" ? [score.left, score.right] : [score.right, score.left];
+        d = {
+          ...d,
+          scoreLabels: { us: us.label, them: them.label },
+          goalsFor: us.goals === null ? d.goalsFor : String(us.goals),
+          goalsAgainst: them.goals === null ? d.goalsAgainst : String(them.goals),
+          teamUs: teamSideToEditor(us.stats),
+          teamThem: teamSideToEditor(them.stats),
+          opponent: d.opponent || them.label || "",
+        };
+      }
+      if (!d.goalsFor && ourGoals !== null) d = { ...d, goalsFor: String(ourGoals) };
+      return d;
     });
   }
 

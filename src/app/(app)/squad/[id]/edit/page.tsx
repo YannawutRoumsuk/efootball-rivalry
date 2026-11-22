@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { SquadEditForm } from "@/components/squad/squad-admin";
-import { columnsToEditor, type EditorDraft } from "@/lib/client/squad";
+import { columnsToEditor, teamSideToEditor, type EditorDraft } from "@/lib/client/squad";
 import { SQUAD_SLOTS } from "@/lib/domain/squad";
 import { getT } from "@/lib/i18n/server";
 import { asUser, isUuid, requirePageContext } from "@/lib/server/context";
@@ -27,6 +27,9 @@ export default async function SquadEditPage({ params }: PageProps<"/squad/[id]/e
   });
   const initial: EditorDraft = {
     team: match.team_name ?? "",
+    opponent: match.opponent_name ?? "",
+    teamUs: teamSideToEditor(match.team_stats?.us),
+    teamThem: teamSideToEditor(match.team_stats?.them),
     playedOn: (match.played_at ?? match.created_at).slice(0, 10),
     goalsFor: match.goals_for === null ? "" : String(match.goals_for),
     goalsAgainst: match.goals_against === null ? "" : String(match.goals_against),

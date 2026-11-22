@@ -22,7 +22,14 @@ export async function saveSquadMatch(
   const issues = validateSquadColumns(input.players.map((p) => ({ slot: p.slot, playerId: p.player_id, stats: p.stats })));
   if (issues.length > 0) throw new ApiError("VALIDATION", issues[0].message, 400, issues);
 
-  const match = { played_at: input.played_at, team_name: input.team_name, goals_for: input.goals_for, goals_against: input.goals_against };
+  const match = {
+    played_at: input.played_at,
+    team_name: input.team_name,
+    opponent_name: input.opponent_name,
+    goals_for: input.goals_for,
+    goals_against: input.goals_against,
+    team_stats: input.team_stats,
+  };
   const [{ id }] = await asUser(
     userId,
     (tx) => tx<Array<{ id: string }>>`

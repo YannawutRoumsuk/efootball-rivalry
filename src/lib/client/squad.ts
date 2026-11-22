@@ -1,6 +1,16 @@
 import type { SquadUploadResponse } from "@/app/api/squad/uploads/route";
 import { apiFetch } from "@/lib/api/envelope";
-import { SQUAD_STAT_KEYS, type SquadDraftColumn, type SquadSlot, type SquadStatKey, type SquadStats } from "@/lib/domain/squad";
+import {
+  SQUAD_STAT_KEYS,
+  TEAM_STAT_KEYS,
+  type SquadDraftColumn,
+  type SquadSlot,
+  type SquadStatKey,
+  type SquadStats,
+  type TeamSide,
+  type TeamStatKey,
+  type TeamStats,
+} from "@/lib/domain/squad";
 import type { SquadMatchInput } from "@/lib/domain/squad-schema";
 
 export type { SquadUploadResponse };
@@ -22,12 +32,43 @@ export interface EditorColumn {
   stats: Partial<Record<SquadStatKey, string>>;
 }
 
+export type EditorTeamSide = Partial<Record<TeamStatKey, string>>;
+
 export interface EditorDraft {
   team: string;
+  opponent: string;
   playedOn: string;
   goalsFor: string;
   goalsAgainst: string;
+  /** Full Time screen: our team and the opponents. */
+  teamUs: EditorTeamSide;
+  teamThem: EditorTeamSide;
+  /** Names read from the score screen for each side (to keep the opponent right after a swap). */
+  scoreLabels?: { us: string | null; them: string | null };
   columns: EditorColumn[];
+}
+
+export function teamSideToEditor(side: TeamSide | null | undefined): EditorTeamSide {
+  return Object.fromEntries(
+    Object.entries(side ?? {})
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => [k, String(v)]),
+  );
+}
+
+function editorTeamSide(side: EditorTeamSide): TeamSide {
+  const out: TeamSide = {};
+  for (const k of TEAM_STAT_KEYS) {
+    const v = toInt(side[k]);
+    if (v !== null) out[k] = v;
+  }
+  return out;
+}
+
+export function editorTeamStats(d: Pick<EditorDraft, "teamUs" | "teamThem">): TeamStats | null {
+  const us = editorTeamSide(d.teamUs);
+  const them = editorTeamSide(d.teamThem);
+  return Object.keys(us).length + Object.keys(them).length === 0 ? null : { us, them };
 }
 
 export function todayLocal(): string {
@@ -66,6 +107,8 @@ export function editorToInput(d: EditorDraft, uploadIds: string[]): SquadMatchIn
   return {
     played_at: d.playedOn ? `${d.playedOn}T12:00:00.000Z` : null,
     team_name: d.team.trim() || null,
+    opponent_name: d.opponent.trim() || null,
+    team_stats: editorTeamStats(d),
     goals_for: toInt(d.goalsFor),
     goals_against: toInt(d.goalsAgainst),
     players: d.columns

@@ -34,6 +34,7 @@ import { fmt, pct } from "@/lib/format";
 import { useT } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/core";
 import { cn } from "@/lib/utils";
+import { ResultsView } from "./squad-results";
 
 export interface ExplorerPlayer {
   id: string;
@@ -48,8 +49,9 @@ interface Props {
   comparison: ModeComparison[];
 }
 
-type Tab = "radar" | "trend" | "compare" | "vs";
+type Tab = "results" | "radar" | "trend" | "compare" | "vs";
 const TABS: Array<{ id: Tab; label: MessageKey }> = [
+  { id: "results", label: "squad.tab.results" },
   { id: "radar", label: "squad.tab.radar" },
   { id: "compare", label: "squad.tab.compare" },
   { id: "trend", label: "squad.tab.trend" },
@@ -64,7 +66,7 @@ const tooltipStyle = {
 /** One panel, four ways to look at the 3v3 numbers. */
 export function SquadExplorer({ players, summaries, matches, comparison }: Props) {
   const t = useT();
-  const [tab, setTab] = useState<Tab>("radar");
+  const [tab, setTab] = useState<Tab>("results");
   return (
     <section className="panel overflow-hidden">
       <div role="tablist" aria-label={t("squad.title")} className="flex gap-1 overflow-x-auto border-b p-2">
@@ -89,6 +91,7 @@ export function SquadExplorer({ players, summaries, matches, comparison }: Props
         {tab === "trend" && <TrendView players={players} matches={matches} />}
         {tab === "compare" && <CompareView players={players} summaries={summaries} />}
         {tab === "vs" && <VsView players={players} comparison={comparison} />}
+        {tab === "results" && <ResultsView players={players} matches={matches} />}
       </div>
     </section>
   );

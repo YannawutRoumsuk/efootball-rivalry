@@ -1,3 +1,5 @@
+import { STAT_KEYS } from "./types";
+
 /**
  * PvP 3v3 ("squad") matches: three of us on one team against another team.
  * The post-match screen is a scrolling table — one column per teammate, one
@@ -355,21 +357,104 @@ export interface SquadPlayerLine {
   stats: SquadStats;
 }
 
+/** Team stats from the "Full Time" score screen (1v1 stat keys, plus penalties after a shoot-out). */
+export const TEAM_STAT_KEYS = [...STAT_KEYS, "penalties"] as const;
+export type TeamStatKey = (typeof TEAM_STAT_KEYS)[number];
+export type TeamSide = Partial<Record<TeamStatKey, number | null>>;
+export interface TeamStats {
+  us: TeamSide;
+  them: TeamSide;
+}
+
 export interface SquadMatch {
   id: string;
   played_at: string | null;
   team_name: string | null;
+  opponent_name: string | null;
   goals_for: number | null;
   goals_against: number | null;
+  team_stats: TeamStats | null;
   created_at: string;
   players: SquadPlayerLine[];
 }
 
 export type SquadOutcome = "W" | "D" | "L";
 
-export function squadOutcome(m: Pick<SquadMatch, "goals_for" | "goals_against">): SquadOutcome | null {
+/** A level score decided on penalties counts as a win/loss for the shoot-out result. */
+export function squadOutcome(m: Pick<SquadMatch, "goals_for" | "goals_against"> & { team_stats?: TeamStats | null }): SquadOutcome | null {
   if (m.goals_for === null || m.goals_against === null) return null;
-  return m.goals_for > m.goals_against ? "W" : m.goals_for < m.goals_against ? "L" : "D";
+  if (m.goals_for !== m.goals_against) return m.goals_for > m.goals_against ? "W" : "L";
+  const pf = m.team_stats?.us.penalties;
+  const pa = m.team_stats?.them.penalties;
+  if (pf != null && pa != null && pf !== pa) return pf > pa ? "W" : "L";
+  return "D";
+}
+
+/** Goal difference from our side (null without a score). */
+export function goalMargin(m: Pick<SquadMatch, "goals_for" | "goals_against">): number | null {
+  return m.goals_for === null || m.goals_against === null ? null : m.goals_for - m.goals_against;
+}
+
+export interface FullTimeSide {
+  goals: number | null;
+  label: string | null;
+}
+
+/**
+ * Which side of a Full Time screen is our team: the label that matches our
+ * team name, else the side whose goals equal our players' goals added up.
+ * Null when it can't be told (the user picks).
+ */
+export function ourFullTimeSide(left: FullTimeSide, right: FullTimeSide, teamName: string | null, ourGoals: number | null): "left" | "right" | null {
+  const team = teamName ? foldText(teamName) : "";
+  if (team.length >= 2) {
+    const l = left.label ? foldText(left.label) : "";
+    const r = right.label ? foldText(right.label) : "";
+    // OCR slips ("8VB") are tolerated; it only decides when exactly one side matches.
+    const near = (x: string) => x.length >= 2 && (x.includes(team) || team.includes(x) || editDistance(x, team) <= (team.length >= 3 ? 1 : 0));
+    const lm = near(l);
+    const rm = near(r);
+    if (lm !== rm) return lm ? "left" : "right";
+  }
+  if (ourGoals !== null && left.goals !== null && right.goals !== null && left.goals !== right.goals) {
+    if (left.goals === ourGoals) return "left";
+    if (right.goals === ourGoals) return "right";
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Wins vs losses: how the team and each player play when we win or lose
+// ---------------------------------------------------------------------------
+
+export interface OutcomeSplit<T> {
+  W: T;
+  D: T;
+  L: T;
+}
+
+function average(values: ReadonlyArray<number | null | undefined>): number | null {
+  const v = values.filter((x): x is number => x !== null && x !== undefined);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+
+/** Average team stats (ours and theirs) over the matches with each outcome. */
+export function teamStatsByOutcome(
+  matches: readonly SquadMatch[],
+  keys: readonly TeamStatKey[],
+): OutcomeSplit<{ games: number; us: TeamSide; them: TeamSide }> {
+  const pick = (o: SquadOutcome) => {
+    const ms = matches.filter((m) => squadOutcome(m) === o);
+    const side = (who: "us" | "them") => Object.fromEntries(keys.map((k) => [k, average(ms.map((m) => m.team_stats?.[who][k]))])) as TeamSide;
+    return { games: ms.length, us: side("us"), them: side("them") };
+  };
+  return { W: pick("W"), D: pick("D"), L: pick("L") };
+}
+
+/** A player's per-match averages split by result. */
+export function playerByOutcome(matches: readonly SquadMatch[], playerId: string): OutcomeSplit<SquadPlayerSummary> {
+  const by = (o: SquadOutcome) => summarizeSquadPlayer(matches.filter((m) => squadOutcome(m) === o), playerId);
+  return { W: by("W"), D: by("D"), L: by("L") };
 }
 
 /** Team goals = the goals of every column (ours and a stranger's), when all were read. */
