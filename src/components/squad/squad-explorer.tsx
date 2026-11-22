@@ -127,7 +127,7 @@ export function SquadRadar({ players, values, className = "h-72 sm:h-80" }: { pl
     const top = Math.max(0, ...players.map((p) => values[p.id]?.[k] ?? 0));
     for (const p of players) {
       const v = values[p.id]?.[k] ?? null;
-      point[p.id] = v === null || top === 0 ? null : Math.round((v / top) * 100);
+      point[p.id] = v === null || top <= 0 ? null : Math.round((Math.max(0, v) / top) * 100);
       point[`${p.id}:raw`] = v === null ? null : Math.round(v);
     }
     return point;
@@ -254,7 +254,7 @@ export function MetricBars({ label, items, percent = false, note }: { label: str
       <ul className="space-y-1">
         {items.map((it, i) => {
           const lead = best.includes(i);
-          const width = it.value === null || max === 0 ? 0 : (it.value / max) * 100;
+          const width = it.value === null || max === 0 ? 0 : (Math.max(0, it.value) / max) * 100;
           return (
             <li
               key={it.player.id}

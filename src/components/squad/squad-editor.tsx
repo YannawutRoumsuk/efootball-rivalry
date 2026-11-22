@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { editorStats, type EditorColumn, type EditorDraft } from "@/lib/client/squad";
 import type { RosterPlayer } from "@/lib/domain/league";
-import { categorySum, SQUAD_GROUPS, SQUAD_ROWS, type SquadRow, type SquadSlot, type SquadStatKey } from "@/lib/domain/squad";
+import { categorySum, isSigned, SQUAD_GROUPS, SQUAD_ROWS, type SquadRow, type SquadSlot, type SquadStatKey } from "@/lib/domain/squad";
 import { useT } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/core";
 import { cn } from "@/lib/utils";
+import { AwardChip } from "./award-chip";
 import { TeamStatsEditor } from "./team-stats-editor";
 
 interface SquadEditorProps {
@@ -33,7 +34,9 @@ export function SquadEditor({ draft, roster, onChange, flagged }: SquadEditorPro
     onChange({ ...draft, columns: draft.columns.map((c) => (c.slot === slot ? { ...c, ...patch } : c)) });
   const setStat = (slot: SquadSlot, key: SquadStatKey, value: string) => {
     const col = draft.columns.find((c) => c.slot === slot)!;
-    const stats = { ...col.stats, [key]: value.replace(/[^\d]/g, "").slice(0, 5) };
+    // Evaluation points can be negative: keep one leading minus there.
+    const clean = isSigned(key) ? value.replace(/[^\d-]/g, "").replace(/(?!^)-/g, "").slice(0, 6) : value.replace(/[^\d]/g, "").slice(0, 5);
+    const stats = { ...col.stats, [key]: clean };
     // Total Points always equals the six categories added up.
     const sum = categorySum(editorStats({ ...col, stats }));
     if (key !== "total_points" && sum !== null) stats.total_points = String(sum);
@@ -107,6 +110,19 @@ export function SquadEditor({ draft, roster, onChange, flagged }: SquadEditorPro
                         maxLength={60}
                         onChange={(e) => setColumn(c.slot, { ingameName: e.target.value })}
                       />
+                      {c.awards.length > 0 && (
+                        <span className="flex flex-wrap gap-1 pt-0.5">
+                          {c.awards.map((a, i) => (
+                            <AwardChip
+                              key={`${a.title}-${i}`}
+                              award={a}
+                              size="xs"
+                              removeLabel={t("squad.awards.remove", { title: a.title })}
+                              onRemove={() => setColumn(c.slot, { awards: c.awards.filter((_, j) => j !== i) })}
+                            />
+                          ))}
+                        </span>
+                      )}
                     </div>
                   </th>
                 );

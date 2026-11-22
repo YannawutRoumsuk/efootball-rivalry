@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { seatColor } from "@/components/player/seat-scope";
 import { SquadAdminActions } from "@/components/squad/squad-admin";
 import { SquadRadar } from "@/components/squad/squad-explorer";
+import { AwardList } from "@/components/squad/award-chip";
 import { columnName } from "@/components/squad/squad-match-card";
 import { TeamStatsPanel } from "@/components/squad/team-stats-panel";
 import { leaders } from "@/lib/domain/player-stats";
@@ -73,6 +74,7 @@ export default async function SquadMatchPage({ params }: PageProps<"/squad/[id]"
                         {columnName(p, ctx.roster, t)}
                       </span>
                       {p.ingame_name && <span className="block text-[0.7rem] font-normal text-muted-foreground">{p.ingame_name}</span>}
+                      <AwardList awards={p.awards} size="xs" className="mt-1 justify-end" />
                     </th>
                   );
                 })}

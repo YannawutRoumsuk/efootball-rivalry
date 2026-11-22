@@ -1,7 +1,8 @@
 import "server-only";
 
+import sharp from "sharp";
 import { PSM, type Worker } from "tesseract.js";
-import { matchRowLabel, parseCell, type SquadRow, type SquadScreenRead } from "@/lib/domain/squad";
+import { matchRowLabel, parseCell, type AwardTier, type SquadAward, type SquadRow, type SquadScreenRead } from "@/lib/domain/squad";
 import {
   decode,
   DIGIT_WHITELIST,
@@ -101,7 +102,7 @@ interface Symbol {
 /** False when a glyph is too wide for the digit it was read as (merged glyphs). */
 export function plausibleGlyphs(symbols: readonly Symbol[]): boolean {
   return symbols.every((s) => {
-    if (!/d/.test(s.text)) return true;
+    if (!/\d/.test(s.text)) return true;
     const ratio = (s.bbox.x1 - s.bbox.x0) / Math.max(1, s.bbox.y1 - s.bbox.y0);
     return ratio <= (s.text === "1" ? MAX_ONE_RATIO : MAX_DIGIT_RATIO);
   });
@@ -114,10 +115,11 @@ async function readCell(grey: Grey, region: Region, row: SquadRow, worker: Worke
     for (const threshold of THRESHOLDS) {
       const { data } = await worker.recognize(await prepare(grey, region, threshold, height), {}, { blocks: true });
       // The stylised "0" of the big point totals sometimes reads as "()".
-      const text = row.keys[0] === "total_points" ? data.text.replace(/()/g, "0") : data.text;
+      const text = row.keys[0] === "total_points" ? data.text.replace(/\(\)/g, "0") : data.text;
       seen.push(text.trim());
-      const values = parseCell(text, row.format);
-      if (!values || values.some((v) => v > row.max) || data.confidence < MIN_VOTE_CONFIDENCE) continue;
+      const signed = row.group === "rating";
+      const values = parseCell(text, row.format, signed);
+      if (!values || values.some((v) => Math.abs(v) > row.max) || data.confidence < MIN_VOTE_CONFIDENCE) continue;
       const symbols = (data.blocks ?? []).flatMap((b) => b.paragraphs.flatMap((p) => p.lines.flatMap((l) => l.words.flatMap((w) => w.symbols))));
       if (!plausibleGlyphs(symbols)) continue;
       const key = values.join(",");
@@ -131,6 +133,8 @@ async function readCell(grey: Grey, region: Region, row: SquadRow, worker: Worke
   const ranked = [...votes.values()].sort((a, b) => b.n - a.n);
   const [top, next] = ranked;
   if (top && top.n >= EARLY_VOTES && top.heights.size >= 2 && top.n >= 2 * (next?.n ?? 0)) return { values: top.values, note: "" };
+  // Two reads at different scales that agree, with nothing else read at all, are enough.
+  if (top && !next && top.n >= 2 && top.heights.size >= 2) return { values: top.values, note: "" };
   return { values: null, note: ranked.length ? ranked.map((v) => `${v.values.join("/")}×${v.n}`).join(" ") : `"${seen.find(Boolean) ?? ""}"` };
 }
 
@@ -156,12 +160,16 @@ async function read(source: Buffer, w: Workers): Promise<SquadOcrResult> {
   } finally {
     await w.eng.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE });
   }
-  if (rows.length < MIN_ROWS) return { ...empty, problems: ["no squad stats table found"], ms: Date.now() - t0 };
+  if (rows.length < MIN_ROWS) {
+    const awards = await readAwards(source, w);
+    if (awards) return { ...empty, names: awards.names, awards: awards.titles, ms: Date.now() - t0 };
+    return { ...empty, problems: ["no squad stats table found"], ms: Date.now() - t0 };
+  }
 
   const g = GEOMETRY;
   const problems: string[] = [];
   const values: SquadScreenRead["values"] = {};
-  await w.digits.setParameters({ tessedit_char_whitelist: "0123456789()% " });
+  await w.digits.setParameters({ tessedit_char_whitelist: "0123456789()%- " });
   try {
     for (const { row, y } of rows) {
       const cells: Array<number[] | null> = [];
@@ -184,6 +192,103 @@ async function read(source: Buffer, w: Workers): Promise<SquadOcrResult> {
   const team = await readText(grey, box(grey, g.team.from + g.team.width / 2, nameY, g.team.width / 2, g.names.height / 2), w.eng);
 
   return { names, team, values, rows: rows.map((r) => r.row.label), problems, ms: Date.now() - t0 };
+}
+
+// ---------------------------------------------------------------------------
+// Co-op Awards screen: three columns (avatar + name) with up to three title
+// pills each, coloured gold / silver (blue-grey) / bronze (brown).
+// ---------------------------------------------------------------------------
+
+const AWARDS = {
+  title: { from: -0.73, width: 0.5, top: 0.105, height: 0.07 },
+  columns: [-0.595, 0, 0.593],
+  name: { offset: -0.1, width: 0.34, y: 0.27, halfHeight: 0.04 },
+  pills: [0.431, 0.585, 0.742],
+  pillHalf: { w: 0.235, h: 0.055 },
+  textHalf: { w: 0.215, h: 0.034 },
+} as const;
+const MAX_HEIGHT = 1200;
+
+interface Rgb {
+  data: Buffer;
+  width: number;
+  height: number;
+}
+
+/**
+ * The screenshot as RGB plus a "min channel" greyscale: white text stays
+ * bright while every coloured pill turns dark, so the titles threshold
+ * cleanly whatever the pill colour.
+ */
+async function decodeRgb(source: Buffer): Promise<{ rgb: Rgb; grey: Grey } | null> {
+  const { width, height } = await sharp(source).metadata();
+  if (!width || !height || width < height) return null;
+  const { data, info } = await sharp(source)
+    .resize({ height: Math.min(height, MAX_HEIGHT), withoutEnlargement: true })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const min = Buffer.alloc(info.width * info.height);
+  for (let i = 0, p = 0; i < min.length; i += 1, p += 3) min[i] = Math.min(data[p], data[p + 1], data[p + 2]);
+  return { rgb: { data, width: info.width, height: info.height }, grey: { data: min, width: info.width, height: info.height } };
+}
+
+/** Pill colour → tier: blue-grey = silver, bright orange/yellow = gold, dark brown = bronze. */
+export function tierFromColour(r: number, g: number, b: number): AwardTier {
+  if (b > r) return "silver";
+  if (r > 170 && g / Math.max(1, r) > 0.5) return "gold";
+  return "bronze";
+}
+
+function meanRgb(rgb: Rgb, region: Region): [number, number, number] {
+  const sum = [0, 0, 0];
+  for (let y = region.top; y < region.top + region.height; y += 1) {
+    for (let x = region.left; x < region.left + region.width; x += 1) {
+      const p = (y * rgb.width + x) * 3;
+      sum[0] += rgb.data[p];
+      sum[1] += rgb.data[p + 1];
+      sum[2] += rgb.data[p + 2];
+    }
+  }
+  const n = Math.max(1, region.width * region.height);
+  return [sum[0] / n, sum[1] / n, sum[2] / n];
+}
+
+async function readAwards(source: Buffer, w: Workers): Promise<{ names: Array<string | null>; titles: SquadAward[][] } | null> {
+  const decoded = await decodeRgb(source);
+  if (!decoded) return null;
+  const { rgb, grey } = decoded;
+  const a = AWARDS;
+  const h = grey.height;
+  const titleRegion: Region = {
+    left: Math.max(0, Math.round(grey.width / 2 + a.title.from * h)),
+    top: Math.round(a.title.top * h),
+    width: Math.round(a.title.width * h),
+    height: Math.round(a.title.height * h),
+  };
+  const title = await readText(grey, titleRegion, w.eng);
+  if (!title || !/co.?op/i.test(title) || !/award/i.test(title)) return null;
+
+  const names: Array<string | null> = [];
+  const titles: SquadAward[][] = [];
+  for (const c of a.columns) {
+    const nameRegion: Region = {
+      left: Math.max(0, Math.round(grey.width / 2 + (c + a.name.offset) * h)),
+      top: Math.round((a.name.y - a.name.halfHeight) * h),
+      width: Math.round(a.name.width * h),
+      height: Math.round(2 * a.name.halfHeight * h),
+    };
+    names.push(await readText(grey, nameRegion, w.eng));
+    const list: SquadAward[] = [];
+    for (const y of a.pills) {
+      const text = await readText(grey, box(grey, c, y, a.textHalf.w, a.textHalf.h), w.eng);
+      if (!text || text.length < 3) continue;
+      const [r, g, b] = meanRgb(rgb, box(grey, c, y, a.pillHalf.w, a.pillHalf.h));
+      list.push({ title: text.slice(0, 40), tier: tierFromColour(r, g, b) });
+    }
+    titles.push(list);
+  }
+  return titles.some((l) => l.length > 0) ? { names, titles } : null;
 }
 
 /** Queued, time-limited read of one squad-table screenshot. */

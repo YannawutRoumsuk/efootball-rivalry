@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import { seatColor } from "@/components/player/seat-scope";
 import { ModePairs, SquadRadar } from "@/components/squad/squad-explorer";
 import { SquadInsights } from "@/components/squad/squad-insights";
+import { AwardChip, tallyAwards } from "@/components/squad/award-chip";
 import { computeElo } from "@/lib/domain/elo";
 import { officialMatches, winnerPlayerId } from "@/lib/domain/match";
 import { playerBoard } from "@/lib/domain/player-stats";
@@ -81,6 +82,7 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
     .filter((p) => summaries.find((s) => s.playerId === p.id)!.games > 0)
     .map((p) => ({ id: p.id, name: p.display_name, seat: p.seat }));
   const comparison = compareModes([id], board, summaries);
+  const titles = tallyAwards(squad.map((m) => m.players.find((x) => x.player_id === id)?.awards));
   const radarPlayers = [
     { id, name: player.display_name, seat: player.seat },
     ...(others.length ? [{ id: "team", name: t("squad.team"), seat: 0 }] : []),
@@ -168,6 +170,19 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
               <Kpi label={t("profile.mvps")} value={String(mine.mvps)} />
               <Kpi label="G+A" value={`${mine.stats.goals.total}+${mine.stats.assists.total}`} />
             </dl>
+            {titles.length > 0 && (
+              <section className="panel p-4">
+                <h3 className="mb-2 text-sm font-semibold">{t("squad.awards.title")}</h3>
+                <ul className="flex flex-wrap gap-2">
+                  {titles.map((a) => (
+                    <li key={`${a.title}|${a.tier}`} className="inline-flex items-center gap-1">
+                      <AwardChip award={a} />
+                      {a.count > 1 && <span className="text-xs font-semibold text-muted-foreground tabular">×{a.count}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <div className="grid gap-4 lg:grid-cols-2">
               <section className="panel p-4" style={{ "--seat-0": "var(--muted-foreground)" } as CSSProperties}>
                 <SquadRadar players={radarPlayers} values={{ [id]: mine.stats ? Object.fromEntries(RADAR_KEYS.map((k) => [k, mine.stats[k].average])) : {}, team: teamAvg }} className="h-72" />

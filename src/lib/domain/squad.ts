@@ -118,6 +118,18 @@ export function rowFor(key: SquadStatKey): SquadRow {
   return ROW_BY_KEY.get(key)!;
 }
 
+/**
+ * Evaluation points can go below zero (a dribble that loses the ball costs
+ * points: "Dribbling -23"); every other number on the screen is a count.
+ */
+export function isSigned(key: SquadStatKey): boolean {
+  return rowFor(key).group === "rating";
+}
+
+export function minOf(key: SquadStatKey): number {
+  return isSigned(key) ? -rowFor(key).max : 0;
+}
+
 export function isSquadStatKey(value: string): value is SquadStatKey {
   return ROW_BY_KEY.has(value as SquadStatKey);
 }
@@ -211,8 +223,8 @@ export function defaultAliases(roster: ReadonlyArray<{ id: string; display_name:
 // Parsing and merging screenshot reads
 // ---------------------------------------------------------------------------
 
-/** "29 (16)" → [29, 16]; "61%" → [61]; "17" → [17]. Null when the text doesn't fit the row's format. */
-export function parseCell(text: string, format: RowFormat): number[] | null {
+/** "29 (16)" → [29, 16]; "61%" → [61]; "17" → [17]; "-23" → [-23] when signed. Null when the text doesn't fit the row's format. */
+export function parseCell(text: string, format: RowFormat, signed = false): number[] | null {
   const t = text.replace(/\s+/g, " ").trim();
   if (format === "pair") {
     const m = t.match(/^(\d{1,4}) ?\((\d{1,4})\)$/);
@@ -222,8 +234,17 @@ export function parseCell(text: string, format: RowFormat): number[] | null {
     const m = t.replace(/ /g, "").match(/^(\d{1,3})%?$/);
     return m ? [Number(m[1])] : null;
   }
-  const m = t.replace(/ /g, "").match(/^(\d{1,5})$/);
+  const m = t.replace(/ /g, "").match(signed ? /^(-?\d{1,5})$/ : /^(\d{1,5})$/);
   return m ? [Number(m[1])] : null;
+}
+
+export const AWARD_TIERS = ["gold", "silver", "bronze"] as const;
+export type AwardTier = (typeof AWARD_TIERS)[number];
+
+/** A title from the "Co-op Awards" screen ("The Architect", "Goal Hunter" …) and its pill colour. */
+export interface SquadAward {
+  title: string;
+  tier: AwardTier;
 }
 
 /** One screenshot's worth of reads: names per column and the rows it showed. */
@@ -232,6 +253,11 @@ export interface SquadScreenRead {
   team: string | null;
   /** Values per column (index 0–2); null = row seen but the cell couldn't be read. */
   values: Partial<Record<SquadStatKey, Array<number | null>>>;
+  /**
+   * Set on the Co-op Awards screen: titles per column of THAT screen, whose
+   * column order may differ from the stats table (`names` are its names).
+   */
+  awards?: SquadAward[][] | null;
 }
 
 export interface SquadDraftColumn {
@@ -239,6 +265,7 @@ export interface SquadDraftColumn {
   ingameName: string | null;
   playerId: string | null;
   stats: SquadStats;
+  awards: SquadAward[];
 }
 
 export interface SquadDraft {
@@ -255,8 +282,9 @@ export interface SquadDraft {
  * cell wins; a disagreeing later read is reported, never silently mixed in.
  * Names: the most frequent read per column.
  */
-export function mergeScreenReads(reads: readonly SquadScreenRead[], aliases: readonly NameAlias[]): SquadDraft {
+export function mergeScreenReads(allReads: readonly SquadScreenRead[], aliases: readonly NameAlias[]): SquadDraft {
   const conflicts: SquadDraft["conflicts"] = [];
+  const reads = allReads.filter((r) => !r.awards);
   const columns: SquadDraftColumn[] = SQUAD_SLOTS.map((slot, i) => {
     const names = reads.map((r) => r.names[i]).filter((n): n is string => Boolean(n && n.trim()));
     const ingameName = mostCommon(names);
@@ -276,8 +304,9 @@ export function mergeScreenReads(reads: readonly SquadScreenRead[], aliases: rea
     // Total Points is the sum of the six category points; its stylised digits are the hardest to read.
     const sum = categorySum(stats);
     if (sum !== null) stats.total_points = sum;
-    return { slot, ingameName, playerId: matchAlias(ingameName, aliases)?.playerId ?? null, stats };
+    return { slot, ingameName, playerId: matchAlias(ingameName, aliases)?.playerId ?? null, stats, awards: [] };
   });
+  attachAwards(columns, allReads.filter((r) => r.awards));
   // Never pre-select the same player for two columns.
   const seen = new Set<string>();
   for (const c of columns) {
@@ -298,6 +327,34 @@ export function categorySum(stats: SquadStats): number | null {
     sum += v;
   }
   return sum;
+}
+
+/**
+ * The awards screen lists the players in its own order: titles are matched to
+ * table columns by in-game name (O/0-tolerant), by position when names are unknown.
+ */
+function attachAwards(columns: SquadDraftColumn[], awardReads: readonly SquadScreenRead[]): void {
+  const byName = columns.filter((c) => c.ingameName).map((c) => ({ name: c.ingameName!, playerId: String(c.slot) }));
+  for (const read of awardReads) {
+    const lists = read.awards!;
+    const taken = new Set<SquadDraftColumn>();
+    const leftover: number[] = [];
+    lists.forEach((titles, j) => {
+      if (!titles || titles.length === 0) return;
+      const named = byName.length > 0 ? matchAlias(read.names[j] ?? null, byName) : null;
+      const column = named ? columns.find((c) => String(c.slot) === named.playerId) : byName.length === 0 ? columns[j] : undefined;
+      if (column && !taken.has(column)) {
+        taken.add(column);
+        if (column.awards.length === 0) column.awards = titles.slice(0, 6);
+      } else leftover.push(j);
+    });
+    // Unreadable names: the remaining award columns go to the remaining table columns, in order.
+    const free = columns.filter((c) => !taken.has(c));
+    leftover.forEach((j, k) => {
+      const column = free[k];
+      if (column && column.awards.length === 0) column.awards = lists[j].slice(0, 6);
+    });
+  }
 }
 
 function mostCommon(values: readonly string[]): string | null {
@@ -335,7 +392,7 @@ export function validateSquadColumns(columns: ReadonlyArray<Pick<SquadDraftColum
   for (const c of columns) {
     for (const [key, v] of Object.entries(c.stats) as Array<[SquadStatKey, number | null]>) {
       if (v === null || v === undefined) continue;
-      if (!Number.isInteger(v) || v < 0 || v > rowFor(key).max) issues.push({ slot: c.slot, key, message: "Value out of range." });
+      if (!Number.isInteger(v) || v < minOf(key) || v > rowFor(key).max) issues.push({ slot: c.slot, key, message: "Value out of range." });
     }
     for (const [part, whole] of PART_OF) {
       const p = c.stats[part];
@@ -355,6 +412,8 @@ export interface SquadPlayerLine {
   player_id: string | null;
   ingame_name: string | null;
   stats: SquadStats;
+  /** Co-op Awards titles (absent on matches saved before awards were read). */
+  awards?: SquadAward[];
 }
 
 /** Team stats from the "Full Time" score screen (1v1 stat keys, plus penalties after a shoot-out). */

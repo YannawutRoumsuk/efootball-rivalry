@@ -1,7 +1,9 @@
 import type { SquadUploadResponse } from "@/app/api/squad/uploads/route";
 import { apiFetch } from "@/lib/api/envelope";
 import {
+  isSigned,
   SQUAD_STAT_KEYS,
+  type SquadAward,
   TEAM_STAT_KEYS,
   type SquadDraftColumn,
   type SquadSlot,
@@ -30,6 +32,8 @@ export interface EditorColumn {
   ingameName: string;
   player: ColumnPlayer;
   stats: Partial<Record<SquadStatKey, string>>;
+  /** Co-op Awards titles read for this column. */
+  awards: SquadAward[];
 }
 
 export type EditorTeamSide = Partial<Record<TeamStatKey, string>>;
@@ -76,9 +80,12 @@ export function todayLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function columnsToEditor(columns: ReadonlyArray<Pick<SquadDraftColumn, "slot" | "ingameName" | "playerId" | "stats">>): EditorColumn[] {
+export function columnsToEditor(
+  columns: ReadonlyArray<Pick<SquadDraftColumn, "slot" | "ingameName" | "playerId" | "stats"> & { awards?: SquadAward[] }>,
+): EditorColumn[] {
   return columns.map((c) => ({
     slot: c.slot,
+    awards: c.awards ?? [],
     ingameName: c.ingameName ?? "",
     player: c.playerId ?? "",
     stats: Object.fromEntries(
@@ -94,10 +101,16 @@ const toInt = (s: string | undefined): number | null => {
   return /^\d+$/.test(t) ? Number(t) : null;
 };
 
-export function editorStats(c: EditorColumn): SquadStats {
+/** Evaluation points may be negative ("-23"); counts may not. */
+const toStat = (key: SquadStatKey, s: string | undefined): number | null => {
+  const t = (s ?? "").trim();
+  return (isSigned(key) ? /^-?\d+$/ : /^\d+$/).test(t) ? Number(t) : null;
+};
+
+export function editorStats(c: Pick<EditorColumn, "stats">): SquadStats {
   const out: SquadStats = {};
   for (const k of SQUAD_STAT_KEYS) {
-    const v = toInt(c.stats[k]);
+    const v = toStat(k, c.stats[k]);
     if (v !== null) out[k] = v;
   }
   return out;
@@ -118,6 +131,7 @@ export function editorToInput(d: EditorDraft, uploadIds: string[]): SquadMatchIn
         player_id: c.player === "guest" || c.player === "" ? null : c.player,
         ingame_name: c.ingameName.trim() || null,
         stats: editorStats(c),
+        awards: c.awards,
       })),
     upload_ids: uploadIds,
   };

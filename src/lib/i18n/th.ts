@@ -594,7 +594,7 @@ export const th: Record<keyof typeof en, string> = {
   "squad.back": "กลับไปหน้า 3v3",
   "squad.ownerOnly": "เฉพาะผู้เล่น 1 (แอดมิน) ที่แก้ไขหรือลบแมตช์ 3v3 ที่บันทึกแล้วได้",
   "squad.up.title": "อัปโหลดแมตช์ 3v3",
-  "squad.up.body": "เลือกภาพตารางสถิติทั้งหมดของแมตช์เดียว (ปกติ 5–6 รูป เลื่อนตั้งแต่ Total Points ลงไปถึง Players Marked) ระบบจะอ่านให้ และยังไม่บันทึกจนกว่าจะกดยืนยัน",
+  "squad.up.body": "เลือกรูปทั้งหมดของแมตช์เดียว: ตารางสถิติ (ปกติ 5–6 รูป เลื่อนตั้งแต่ Total Points ถึง Players Marked) และถ้ามี ใส่รูปหน้า Co-op Awards (ฉายา) กับหน้าสกอร์ Full Time ด้วย — ระบบอ่านให้ (ช่องที่ OCR อ่านไม่ออก AI จะช่วยอ่าน) และยังไม่บันทึกจนกว่าจะกดยืนยัน",
   "squad.up.pick": "เลือกรูป",
   "squad.up.more": "เพิ่มรูป",
   "squad.up.reading": "กำลังอ่านรูปที่ {i} จาก {n}…",
@@ -685,4 +685,8 @@ export const th: Record<keyof typeof en, string> = {
   "squad.tip.tackles": "คู่แข่งเลี้ยงใกล้ตัวให้เข้าแท็กเกิลให้มากขึ้น",
   "squad.tip.impactful_steals": "แย่งบอลคืนในจุดที่อันตราย ไม่ใช่แค่ที่ไหนก็ได้",
   "squad.tip.good_positioning_pct": "อยู่ในตำแหน่งที่ถูกให้นานขึ้น — ตอนไม่มีบอลให้รักษารูปทีม",
+  "squad.up.awardsRead": "รูปที่ {i} เป็นหน้า Co-op Awards — ใส่ฉายาให้แต่ละคนแล้ว",
+  "squad.up.aiFilled": "รูปที่ {i}: AI ช่วยอ่าน {n} ช่องที่ OCR อ่านไม่ออก — ช่วยตรวจอีกที",
+  "squad.awards.title": "ฉายาที่ได้ (Co-op Awards)",
+  "squad.awards.remove": "ลบฉายา {title}",
 };

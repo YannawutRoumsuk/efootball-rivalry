@@ -64,8 +64,25 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
   return res.json();
 }
 
+/** One vision request: a system prompt, a user instruction, the image and the JSON schema of the answer. */
+export interface VisionRequest {
+  system: string;
+  instruction: string;
+  schemaName: string;
+  schema: Record<string, unknown>;
+  image: { base64: string; mime: string };
+  /** Upper bound on the answer (Anthropic needs one); defaults to 1500. */
+  maxTokens?: number;
+}
+
+/** Sends one image to the configured vision model and returns its JSON answer (not yet validated). */
+export function visionJson(config: AiConfig, req: VisionRequest): Promise<unknown> {
+  return config.provider === "anthropic" ? callAnthropic(config, req) : callChatCompletions(config, req);
+}
+
 /** OpenAI and OpenRouter share the Chat Completions format with JSON-schema output. */
-async function callChatCompletions(config: AiConfig, base64: string, mime: string): Promise<unknown> {
+async function callChatCompletions(config: AiConfig, req: VisionRequest): Promise<unknown> {
+  const { base64, mime } = req.image;
   const openrouter = config.provider === "openrouter";
   const json = (await postJson(
     openrouter ? "https://openrouter.ai/api/v1/chat/completions" : "https://api.openai.com/v1/chat/completions",
@@ -79,18 +96,18 @@ async function callChatCompletions(config: AiConfig, base64: string, mime: strin
         ? { models: [config.model, config.fallbackModel], reasoning: { effort: "low" } }
         : {}),
       messages: [
-        { role: "system", content: EXTRACTION_PROMPT },
+        { role: "system", content: req.system },
         {
           role: "user",
           content: [
-            { type: "text", text: "Extract the statistics from this screenshot." },
+            { type: "text", text: req.instruction },
             { type: "image_url", image_url: { url: `data:${mime};base64,${base64}`, detail: "high" } },
           ],
         },
       ],
       response_format: {
         type: "json_schema",
-        json_schema: { name: "efootball_full_time_stats", strict: true, schema: EXTRACTION_JSON_SCHEMA },
+        json_schema: { name: req.schemaName, strict: true, schema: req.schema },
       },
     },
   )) as { choices?: Array<{ message?: { content?: string | null; refusal?: string | null } }> };
@@ -104,28 +121,29 @@ async function callChatCompletions(config: AiConfig, base64: string, mime: strin
   }
 }
 
-async function callAnthropic(config: AiConfig, base64: string, mime: string): Promise<unknown> {
+async function callAnthropic(config: AiConfig, req: VisionRequest): Promise<unknown> {
+  const { base64, mime } = req.image;
   const json = (await postJson(
     "https://api.anthropic.com/v1/messages",
     { "x-api-key": config.apiKey, "anthropic-version": "2023-06-01" },
     {
       model: config.model,
-      max_tokens: 1500,
-      system: EXTRACTION_PROMPT,
+      max_tokens: req.maxTokens ?? 1500,
+      system: req.system,
       tools: [
         {
-          name: "record_match_stats",
-          description: "Record the statistics read from the screenshot.",
-          input_schema: EXTRACTION_JSON_SCHEMA,
+          name: req.schemaName,
+          description: "Record what was read from the screenshot.",
+          input_schema: req.schema,
         },
       ],
-      tool_choice: { type: "tool", name: "record_match_stats" },
+      tool_choice: { type: "tool", name: req.schemaName },
       messages: [
         {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: mime, data: base64 } },
-            { type: "text", text: "Extract the statistics from this screenshot." },
+            { type: "text", text: req.instruction },
           ],
         },
       ],
@@ -142,10 +160,13 @@ export async function extractMatchStats(
   config: AiConfig,
   image: { base64: string; mime: string },
 ): Promise<{ raw: unknown; result: ExtractionResult }> {
-  const raw =
-    config.provider === "anthropic"
-      ? await callAnthropic(config, image.base64, image.mime)
-      : await callChatCompletions(config, image.base64, image.mime);
+  const raw = await visionJson(config, {
+    system: EXTRACTION_PROMPT,
+    instruction: "Extract the statistics from this screenshot.",
+    schemaName: "efootball_full_time_stats",
+    schema: EXTRACTION_JSON_SCHEMA,
+    image,
+  });
   try {
     return { raw, result: sanitizeExtraction(raw) };
   } catch {

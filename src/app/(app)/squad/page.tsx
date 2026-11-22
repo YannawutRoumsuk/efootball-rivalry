@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/layout/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
 import { seatColor } from "@/components/player/seat-scope";
 import { AliasManager } from "@/components/squad/alias-manager";
+import { AwardList, tallyAwards } from "@/components/squad/award-chip";
 import { SquadExplorer } from "@/components/squad/squad-explorer";
 import { SquadMatchCard } from "@/components/squad/squad-match-card";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,7 @@ export default async function SquadPage() {
                 </span>
                 <span className="mt-2 block text-3xl font-black tabular">{fmt(s.stats.total_points.average, 0)}</span>
                 <span className="block text-xs text-muted-foreground">{t("squad.kpi.avgPoints")}</span>
+                <AwardList awards={tallyAwards(matches.map((m) => m.players.find((x) => x.player_id === p.id)?.awards)).slice(0, 3)} size="xs" className="mt-2" />
                 <span className="mt-2 flex gap-3 text-xs text-muted-foreground tabular">
                   <span>{t("squad.games", { n: s.games })}</span>
                   <span>{t("squad.ga", { n: s.goalContributions })}</span>

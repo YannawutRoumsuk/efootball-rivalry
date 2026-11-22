@@ -1,13 +1,19 @@
 import { z } from "zod";
-import { isSquadStatKey, rowFor, TEAM_STAT_KEYS, type SquadStatKey } from "./squad";
+import { AWARD_TIERS, isSquadStatKey, minOf, rowFor, TEAM_STAT_KEYS, type SquadStatKey } from "./squad";
 
 const statsSchema = z
-  .record(z.string(), z.number().int().min(0).nullable())
+  .record(z.string(), z.number().int().nullable())
   .refine((o) => Object.keys(o).every((k) => isSquadStatKey(k)), "Unknown statistic.")
   .refine(
-    (o) => Object.entries(o).every(([k, v]) => v === null || (isSquadStatKey(k) && v <= rowFor(k as SquadStatKey).max)),
+    (o) =>
+      Object.entries(o).every(
+        ([k, v]) => v === null || (isSquadStatKey(k) && v >= minOf(k as SquadStatKey) && v <= rowFor(k as SquadStatKey).max),
+      ),
     "A value is out of range.",
   );
+
+/** Co-op Awards titles of one column. */
+export const awardsSchema = z.array(z.object({ title: z.string().trim().min(1).max(40), tier: z.enum(AWARD_TIERS) })).max(6);
 
 const goals = z.number().int().min(0).max(99).nullable();
 
@@ -34,6 +40,7 @@ export const squadMatchSchema = z.object({
         player_id: z.uuid().nullable(),
         ingame_name: z.string().trim().max(60).nullable(),
         stats: statsSchema,
+        awards: awardsSchema.default([]),
       }),
     )
     .min(2)

@@ -28,6 +28,9 @@ interface Props {
   aliases: NameAlias[];
 }
 
+/** A stats-table or Co-op Awards screenshot (both describe the three columns). */
+const isPlayersShot = (s: { response: SquadUploadResponse }) => s.response.read.rows.length > 0 || Boolean(s.response.read.awards);
+
 /** Matches the API's upload_ids limit. */
 const MAX_SHOTS = 12;
 
@@ -50,7 +53,7 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const tableShots = useMemo(() => shots.filter((s) => s.response.read.rows.length > 0), [shots]);
+  const tableShots = useMemo(() => shots.filter(isPlayersShot), [shots]);
   const merged = useMemo(() => mergeScreenReads(tableShots.map((s) => s.response.read), aliases), [tableShots, aliases]);
   const flagged = useMemo(() => new Set(merged.conflicts.map((c) => `${c.slot}:${c.key}`)), [merged]);
 
@@ -68,9 +71,12 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
       setBusy({ i: i + 1, n: files.length });
       try {
         const response = await uploadSquadScreenshot(await prepareImageFile(raw));
-        if (response.read.rows.length === 0 && !response.fulltime) messages.push(t("squad.up.notTable", { i: n }));
-        else added.push({ index: n, response });
+        const shot = { index: n, response };
+        if (!isPlayersShot(shot) && !response.fulltime) messages.push(t("squad.up.notTable", { i: n }));
+        else added.push(shot);
         if (response.fulltime) messages.push(t("squad.up.scoreRead", { i: n }));
+        if (response.read.awards) messages.push(t("squad.up.awardsRead", { i: n }));
+        if (response.aiFilled > 0) messages.push(t("squad.up.aiFilled", { i: n, n: response.aiFilled }));
         if (response.duplicateOf) messages.push(t("squad.up.duplicate", { i: n }));
       } catch (err) {
         messages.push(`#${n}: ${errorText(err, t)}`);
@@ -81,7 +87,7 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
     setShots(all);
     setNotes((prev) => [...prev, ...messages]);
     if (all.length === 0) return;
-    const next = mergeScreenReads(all.filter((s) => s.response.read.rows.length > 0).map((s) => s.response.read), aliases);
+    const next = mergeScreenReads(all.filter(isPlayersShot).map((s) => s.response.read), aliases);
     const score = [...all].reverse().find((s) => s.response.fulltime)?.response.fulltime ?? null;
     const ourGoals = next.columns.every((c) => c.stats.goals != null) ? next.columns.reduce((n, c) => n + (c.stats.goals ?? 0), 0) : null;
     // Keep anything the user already typed; fill only what is still empty.
@@ -105,10 +111,12 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
           ...c,
           ingameName: c.ingameName || fresh[i].ingameName,
           player: c.player || fresh[i].player,
+          awards: c.awards.length > 0 ? c.awards : fresh[i].awards,
           stats: { ...fresh[i].stats, ...Object.fromEntries(Object.entries(c.stats).filter(([, v]) => v !== "")) },
         })),
       };
       const hasTable = all.some((s) => s.response.read.rows.length > 0);
+      // (awards alone don't tell our side of the score screen; the stats table does)
       const detected = score ? ourFullTimeSide(score.left, score.right, team || null, ourGoals) : null;
       // Without the players table there is nothing to tell our side by: wait for it
       // (then fall back to left, which "Swap sides" fixes).

@@ -1,6 +1,7 @@
 import { Crown } from "lucide-react";
 import Link from "next/link";
 import { seatColor } from "@/components/player/seat-scope";
+import { AwardList, tallyAwards } from "./award-chip";
 import type { RosterPlayer } from "@/lib/domain/league";
 import { mvpOf, squadOutcome, type SquadMatch } from "@/lib/domain/squad";
 import { formatMatchDate } from "@/lib/format";
@@ -51,6 +52,7 @@ export function SquadMatchCard({ match, roster, t, locale }: { match: SquadMatch
               <span className="block text-[0.7rem] text-muted-foreground tabular">
                 {p.stats.goals ?? "–"}G · {p.stats.assists ?? "–"}A
               </span>
+              {p.awards && p.awards.length > 0 && <AwardList awards={tallyAwards([p.awards]).slice(0, 1)} size="xs" className="mt-1" />}
             </li>
           );
         })}

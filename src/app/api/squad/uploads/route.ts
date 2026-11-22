@@ -6,8 +6,11 @@ import { TEAM_STAT_KEYS, type SquadScreenRead, type TeamSide } from "@/lib/domai
 import type { DraftSide } from "@/lib/domain/validation";
 import { readFullTimeScreen, type LabelCandidate } from "@/lib/ocr/fulltime";
 import { readSquadScreen, type SquadOcrResult } from "@/lib/ocr/squad";
+import { readSquadWithAi } from "@/lib/ai/squad";
+import { fillFromAi, needsAiHelp } from "@/lib/domain/squad-ai";
+import { getAiConfig } from "@/lib/env";
 import { asUser, requireRivalry } from "@/lib/server/context";
-import { inspectUpload, MAX_UPLOAD_BYTES } from "@/lib/server/image";
+import { inspectUpload, MAX_UPLOAD_BYTES, prepareForVision } from "@/lib/server/image";
 import { consumeRateLimit } from "@/lib/server/rate-limit";
 import { saveScreenshot } from "@/lib/server/storage";
 
@@ -15,6 +18,7 @@ export const runtime = "nodejs";
 export const maxDuration = 90;
 
 const OCR_LIMIT_MESSAGE = "Too many screenshots read. Please wait a few minutes.";
+const AI_LIMIT_MESSAGE = "Too many AI extractions. Please wait a few minutes.";
 
 /** One side of the Full Time score screen. */
 export interface FullTimeRead {
@@ -31,6 +35,8 @@ export interface SquadUploadResponse {
   fulltime: { left: FullTimeRead; right: FullTimeRead } | null;
   /** A saved 3v3 match that already used this exact image. */
   duplicateOf: string | null;
+  /** Cells, names or titles the vision model filled in where OCR couldn't read them. */
+  aiFilled: number;
 }
 
 /**
@@ -87,7 +93,7 @@ export const POST = handle(async (request: Request) => {
   }
   // Not the players table: maybe the Full Time score screen (same layout as 1v1).
   let fulltime: SquadUploadResponse["fulltime"] = null;
-  if (read.rows.length === 0 && read.problems.includes("no squad stats table found")) {
+  if (read.rows.length === 0 && !read.awards && read.problems.includes("no squad stats table found")) {
     try {
       const ft = await readFullTimeScreen(buf);
       const toSide = (side: DraftSide, labels: LabelCandidate[]): FullTimeRead => ({
@@ -104,16 +110,36 @@ export const POST = handle(async (request: Request) => {
       console.error("[squad] Full Time OCR failed", err);
     }
   }
+  // OCR left blanks (or didn't recognise the screen): let the vision model fill them in.
+  let aiFilled = 0;
+  const config = getAiConfig();
+  if (config && needsAiHelp(read, fulltime !== null)) {
+    try {
+      await asUser(userId, async (tx) => {
+        // Separate from the 1v1 budget; a match is 6–8 screenshots, usually only one or two need help.
+        await consumeRateLimit(tx, "ai_squad_10m", 24, 600, AI_LIMIT_MESSAGE);
+        await consumeRateLimit(tx, "ai_squad_day", 120, 86_400, AI_LIMIT_MESSAGE);
+      });
+      const ai = await readSquadWithAi(config, await prepareForVision(buf));
+      const result = fillFromAi(read, ai.read);
+      read = { ...read, ...result.read };
+      aiFilled = result.filled;
+    } catch (err) {
+      // Out of AI budget or the provider failed: what OCR read still stands.
+      if (!(err instanceof ApiError && err.code === "RATE_LIMITED")) console.error("[squad] AI read failed", err);
+    }
+  }
   await asUser(userId, (tx) => tx`
-    update public.squad_uploads set extraction_json = ${jsonb(tx, { ...read, fulltime })}::jsonb where id = ${stored.uploadId}`).catch((err: unknown) =>
+    update public.squad_uploads set extraction_json = ${jsonb(tx, { ...read, fulltime, aiFilled })}::jsonb where id = ${stored.uploadId}`).catch((err: unknown) =>
     console.error("[squad] couldn't store the read", err),
   );
 
   const body: SquadUploadResponse = {
     uploadId: stored.uploadId,
     imageUrl: `/api/squad/screenshots/${stored.uploadId}`,
-    read: { names: read.names, team: read.team, values: read.values, rows: read.rows, problems: read.problems },
+    read: { names: read.names, team: read.team, values: read.values, rows: read.rows, problems: read.problems, awards: read.awards ?? null },
     fulltime,
+    aiFilled,
     duplicateOf: stored.duplicateOf,
   };
   return ok(body, 201);

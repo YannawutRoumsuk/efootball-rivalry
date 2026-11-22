@@ -23,7 +23,7 @@ export default async function SquadEditPage({ params }: PageProps<"/squad/[id]/e
 
   const columns = SQUAD_SLOTS.map((slot) => {
     const p = match.players.find((x) => x.slot === slot);
-    return { slot, ingameName: p?.ingame_name ?? null, playerId: p ? (p.player_id ?? null) : null, stats: p?.stats ?? {} };
+    return { slot, ingameName: p?.ingame_name ?? null, playerId: p ? (p.player_id ?? null) : null, stats: p?.stats ?? {}, awards: p?.awards ?? [] };
   });
   const initial: EditorDraft = {
     team: match.team_name ?? "",

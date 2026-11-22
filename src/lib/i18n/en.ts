@@ -617,7 +617,7 @@ export const en = {
   "squad.back": "Back to 3v3",
   "squad.ownerOnly": "Only player 1 (admin) can edit or delete saved 3v3 matches.",
   "squad.up.title": "Upload a 3v3 match",
-  "squad.up.body": "Pick all screenshots of the stats table from one match (usually 5–6, scrolled from Total Points down to Players Marked). They are read on the server; nothing is saved until you confirm.",
+  "squad.up.body": "Pick all screenshots of one match: the stats table (usually 5–6, scrolled from Total Points down to Players Marked), plus the Co-op Awards and Full Time screens if you have them. They are read on the server (AI fills in what OCR can't); nothing is saved until you confirm.",
   "squad.up.pick": "Choose screenshots",
   "squad.up.more": "Add more screenshots",
   "squad.up.reading": "Reading {i} of {n}…",
@@ -708,4 +708,8 @@ export const en = {
   "squad.tip.tackles": "Commit to more tackles when the opponent has the ball close to you.",
   "squad.tip.impactful_steals": "Win the ball back in dangerous areas, not just anywhere.",
   "squad.tip.good_positioning_pct": "Spend more time in the right position — mind your shape without the ball.",
+  "squad.up.awardsRead": "Screenshot {i} is the Co-op Awards screen — titles added to each player.",
+  "squad.up.aiFilled": "Screenshot {i}: AI read {n} value(s) OCR couldn't. Please double-check them.",
+  "squad.awards.title": "Co-op titles",
+  "squad.awards.remove": "Remove title {title}",
 } as const;

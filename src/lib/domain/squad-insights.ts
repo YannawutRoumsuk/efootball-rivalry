@@ -81,7 +81,7 @@ export interface Standing {
   of: number;
   best: boolean;
   worst: boolean;
-  /** (value − team average) ÷ team average: +0.3 = 30 % above the team. */
+  /** (value − team average) ÷ typical value (the team average when all are positive): +0.3 = 30 % above the team. */
   lift: number;
 }
 
@@ -93,6 +93,8 @@ export function standings(summaries: readonly SquadPlayerSummary[]): Map<string,
     const values = active.map((s) => ({ id: s.playerId, v: metricValue(s, metric) })).filter((x): x is { id: string; v: number } => x.v !== null);
     if (values.length < 2) continue;
     const teamAvg = values.reduce((n, x) => n + x.v, 0) / values.length;
+    // Scale = typical size of the values, so points that can go negative still give a sensible %.
+    const scale = Math.max(Math.abs(teamAvg), values.reduce((n, x) => n + Math.abs(x.v), 0) / values.length);
     const max = Math.max(...values.map((x) => x.v));
     const min = Math.min(...values.map((x) => x.v));
     for (const { id, v } of values) {
@@ -104,7 +106,7 @@ export function standings(summaries: readonly SquadPlayerSummary[]): Map<string,
         of: values.length,
         best: max !== min && v === max,
         worst: max !== min && v === min,
-        lift: teamAvg > 0 ? (v - teamAvg) / teamAvg : 0,
+        lift: scale > 0 ? (v - teamAvg) / scale : 0,
       });
     }
   }
