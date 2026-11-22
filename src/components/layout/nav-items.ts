@@ -1,4 +1,4 @@
-import { BarChart3, History, LayoutDashboard, Upload, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, History, LayoutDashboard, Shield, Upload, Users, type LucideIcon } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/core";
 
 export interface NavItem {
@@ -13,6 +13,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/matches", label: "nav.history", icon: History },
   { href: "/upload", label: "nav.upload", icon: Upload, primary: true },
   { href: "/stats", label: "nav.stats", icon: BarChart3 },
+  { href: "/squad", label: "nav.squad", icon: Shield },
   { href: "/settings", label: "nav.room", icon: Users },
 ];
 

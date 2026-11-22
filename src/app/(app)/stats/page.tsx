@@ -1,4 +1,4 @@
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Shield } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EmptyState } from "@/components/layout/empty-state";
@@ -9,6 +9,10 @@ import { StatsCharts } from "@/components/stats/charts";
 import { PlayerBoardVisual } from "@/components/stats/player-board-visual";
 import { PointsRace } from "@/components/stats/points-race";
 import { RangeFilter } from "@/components/stats/range-filter";
+import { ModePairs } from "@/components/squad/squad-explorer";
+import { summarizeSquadPlayer } from "@/lib/domain/squad";
+import { COMPARE_METRICS, compareModes } from "@/lib/domain/squad-compare";
+import { loadSquadMatches } from "@/lib/server/squad";
 import { Button } from "@/components/ui/button";
 import { computeElo } from "@/lib/domain/elo";
 import { allPairs, matchesBetween, pairFor, pointsTimeline, resolvePair, type PointsPoint } from "@/lib/domain/league";
@@ -36,7 +40,10 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
 
   const str = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : undefined);
   const range = parseRange({ range: str("range"), from: str("from"), to: str("to") });
-  const stored = await asUser(ctx.userId, (tx) => loadMatches(tx, ctx.rivalry!.id));
+  const { stored, squad } = await asUser(ctx.userId, async (tx) => ({
+    stored: await loadMatches(tx, ctx.rivalry!.id),
+    squad: await loadSquadMatches(tx, ctx.rivalry!.id),
+  }));
   const epoch = ctx.rivalry!.season_epoch;
   const seasons = listSeasons(stored, epoch);
   const scope = parseScope(str("season"), seasons);
@@ -69,8 +76,40 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
     </>
   );
 
+  // 1v1 (this scope) next to 3v3 (all 3v3 matches) for everyone who played both.
+  const squadSummaries = roster.map((p) => summarizeSquadPlayer(squad, p.id));
+  const bothModes = roster.filter((p) => squadSummaries.find((q) => q.playerId === p.id)!.games > 0);
+  const modeComparison = compareModes(bothModes.map((p) => p.id), playerBoard(everything, roster), squadSummaries);
+  const vsSection = bothModes.length > 0 && (
+    <section className="panel space-y-3 p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">{t("squad.tab.vs1v1")}</h2>
+        <Link href="/squad" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+          <Shield className="size-3.5" aria-hidden /> {t("squad.title")} →
+        </Link>
+      </div>
+      <p className="text-xs text-muted-foreground">{t("squad.vs.sub")}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {COMPARE_METRICS.map((m) => (
+          <ModePairs key={m} metric={m} players={bothModes.map((p) => ({ id: p.id, name: p.display_name, seat: p.seat }))} comparison={modeComparison} />
+        ))}
+      </div>
+    </section>
+  );
+  const profileLinks = (
+    <nav aria-label={t("profile.link")} className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-xs text-muted-foreground">{t("profile.link")}:</span>
+      {roster.map((p) => (
+        <Link key={p.id} href={`/players/${p.id}`} className="rounded-full border px-3 py-1 font-semibold transition-colors hover:bg-accent" style={{ color: seatColor(p.seat) }}>
+          {p.display_name}
+        </Link>
+      ))}
+    </nav>
+  );
+
   return (
     <div className="space-y-6">
+      {profileLinks}
       <SeasonPicker seasons={seasons} scope={scope} hrefs={seasonHrefs} />
       {scope === "all" && <p className="text-xs text-muted-foreground">{t("season.allNote")}</p>}
       {leagueCharts}
@@ -99,6 +138,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
           ) : (
             <PlayerBoardVisual rows={playerBoard(everything, roster)} elo={computeElo(everything, roster.map((p) => p.id)).players} meId={ctx.me?.id ?? null} />
           )}
+          {vsSection}
         </>
       ) : (
       <PairScope seats={pair.seats}>

@@ -75,14 +75,17 @@ const READ_TIMEOUT_MS = 30_000;
 const DEFAULT_IDLE_MS = 5 * 60_000;
 const idleMs = () => Number(process.env.OCR_IDLE_MS) || DEFAULT_IDLE_MS;
 
-type Region = { left: number; top: number; width: number; height: number };
+export type Region = { left: number; top: number; width: number; height: number };
 /** The screenshot decoded once to 8-bit greyscale; every crop is cut from this buffer. */
-type Grey = { data: Buffer; width: number; height: number };
+export type Grey = { data: Buffer; width: number; height: number };
 
 const dataDir = (lang: "eng" | "tha") =>
   join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "@tesseract.js-data", lang, "4.0.0_best_int");
 
-interface Workers {
+/** The digits worker's normal whitelist (restore it after changing it). */
+export const DIGIT_WHITELIST = "0123456789%";
+
+export interface Workers {
   digits: Worker;
   eng: Worker;
   tha: Worker;
@@ -103,7 +106,7 @@ function workers(): Promise<Workers> {
     ]);
     // Crops carry no DPI metadata; without this Tesseract logs a warning for every read.
     const dpi = { user_defined_dpi: "300" };
-    await digits.setParameters({ ...dpi, tessedit_char_whitelist: "0123456789%", tessedit_pageseg_mode: PSM.SINGLE_LINE });
+    await digits.setParameters({ ...dpi, tessedit_char_whitelist: DIGIT_WHITELIST, tessedit_pageseg_mode: PSM.SINGLE_LINE });
     await eng.setParameters({ ...dpi, tessedit_pageseg_mode: PSM.SINGLE_LINE });
     await tha.setParameters({ ...dpi, tessedit_pageseg_mode: PSM.SINGLE_WORD });
     return { digits, eng, tha };
@@ -196,7 +199,7 @@ function regions(width: number, height: number, shift = 0) {
 }
 
 /** Average brightness (0–255) of a region of the greyscale screenshot. */
-function meanOf(grey: Grey, region: Region): number {
+export function meanOf(grey: Grey, region: Region): number {
   let sum = 0;
   for (let y = region.top; y < region.top + region.height; y++) {
     const row = y * grey.width;
@@ -206,11 +209,11 @@ function meanOf(grey: Grey, region: Region): number {
 }
 
 /** Contrast cut-offs tried in order until a read is confident. */
-const THRESHOLDS = [150, 115, 185] as const;
+export const THRESHOLDS = [150, 115, 185] as const;
 /** Crop heights (px) tried after the first: Tesseract misses some lone glyphs at one scale but not another. */
-const FALLBACK_HEIGHTS = [70, 140] as const;
+export const FALLBACK_HEIGHTS = [70, 140] as const;
 /** Reads at two different crop heights that agree on a value are trusted from this confidence (one read alone needs MIN_CONFIDENCE). */
-const AGREE_CONFIDENCE = 45;
+export const AGREE_CONFIDENCE = 45;
 /** After this many unreadable numbers in a row the image is treated as unreadable (saves ~200 reads on a non-eFootball image). */
 const MAX_CONSECUTIVE_FAILURES = 4;
 
@@ -219,7 +222,7 @@ const MAX_CONSECUTIVE_FAILURES = 4;
  * small stat digits are enlarged, the big score glyph is not) → dark-on-light
  * → threshold → white padding.
  */
-async function prepare(grey: Grey, region: Region, threshold: number = THRESHOLDS[0], targetHeight = 105): Promise<Buffer> {
+export async function prepare(grey: Grey, region: Region, threshold: number = THRESHOLDS[0], targetHeight = 105): Promise<Buffer> {
   const mean = meanOf(grey, region);
   let img = sharp(grey.data, { raw: { width: grey.width, height: grey.height, channels: 1 } })
     .extract(region)
@@ -253,7 +256,7 @@ export interface OcrRead {
   ms: number;
 }
 
-async function decode(source: Buffer): Promise<Grey | null> {
+export async function decode(source: Buffer): Promise<Grey | null> {
   const { width, height } = await sharp(source).metadata();
   if (!width || !height || width < height) return null;
   const { data, info } = await sharp(source)
@@ -265,12 +268,16 @@ async function decode(source: Buffer): Promise<Grey | null> {
   return { data, width: info.width, height: info.height };
 }
 
-/** Queued, time-limited read; a failed or stuck read recreates the workers before rethrowing. */
-export function readFullTimeScreen(source: Buffer): Promise<OcrRead> {
+/**
+ * Runs one OCR job on the shared workers: queued (one at a time), time-limited,
+ * and a failed or stuck job recreates the workers before rethrowing. Jobs that
+ * change worker parameters must restore them before returning.
+ */
+export function runOcrJob<T>(job: (w: Workers) => Promise<T>, timeoutMs = READ_TIMEOUT_MS): Promise<T> {
   return enqueue(async () => {
     clearTimeout(globalThis.__rivalryOcrIdle);
     try {
-      return await withTimeout(read(source), READ_TIMEOUT_MS);
+      return await withTimeout(workers().then(job), timeoutMs);
     } catch (err) {
       await resetWorkers();
       throw err;
@@ -278,6 +285,11 @@ export function readFullTimeScreen(source: Buffer): Promise<OcrRead> {
       if (ocrWorkersLoaded()) scheduleUnload();
     }
   });
+}
+
+/** Reads a 1v1 "Full Time" stats screen. */
+export function readFullTimeScreen(source: Buffer): Promise<OcrRead> {
+  return runOcrJob((w) => read(source, w));
 }
 
 /** Reads the "6 PK 7" strip; null when it can't be read cleanly. */
@@ -295,14 +307,13 @@ async function readShootout(grey: Grey, band: Region, worker: Worker): Promise<[
   return null;
 }
 
-async function read(source: Buffer): Promise<OcrRead> {
+async function read(source: Buffer, w: Workers): Promise<OcrRead> {
   const t0 = Date.now();
   const grey = await decode(source);
   if (!grey) {
     return { left: emptyDraftSide(), right: emptyDraftSide(), labelCandidates: { left: [], right: [] }, complete: false, problems: ["not a landscape screenshot"], ms: 0 };
   }
   const base = regions(grey.width, grey.height);
-  const w = await workers();
   const problems: string[] = [];
   const left = emptyDraftSide();
   const right = emptyDraftSide();

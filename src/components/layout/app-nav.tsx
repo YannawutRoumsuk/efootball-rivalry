@@ -53,7 +53,7 @@ export function AppNav({ roomName, theme }: { roomName: string; theme: Theme }) 
       </header>
 
       <nav aria-label={t("nav.main")} className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
-        <ul className="mx-auto grid max-w-md grid-cols-5 px-2 pt-1.5">
+        <ul className="mx-auto grid max-w-md grid-cols-6 px-1 pt-1.5">
           {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
             return (
