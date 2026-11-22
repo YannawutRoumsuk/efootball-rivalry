@@ -181,6 +181,42 @@
   }
 }
 
+/* Stats board: the best value in each metric. A tinted row, a glowing bar
+   with a light sweep. Reduced-motion users get the static highlight. */
+.leader-row {
+  background: color-mix(in oklch, var(--glow) 13%, transparent);
+}
+.leader-bar {
+  animation: leader-glow 2.4s ease-in-out infinite;
+}
+.leader-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.55), transparent);
+  transform: translateX(-100%);
+  animation: leader-shine 2.8s ease-in-out infinite;
+}
+@keyframes leader-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--glow) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 12px 2px color-mix(in oklch, var(--glow) 75%, transparent);
+  }
+}
+@keyframes leader-shine {
+  0%,
+  35% {
+    transform: translateX(-100%);
+  }
+  75%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

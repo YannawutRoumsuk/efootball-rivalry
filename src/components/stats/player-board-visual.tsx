@@ -1,3 +1,4 @@
+import { Crown } from "lucide-react";
 import { seatColor } from "@/components/player/seat-scope";
 import { ELO, type EloPlayer } from "@/lib/domain/elo";
 import { leaders, type BoardStat, type PlayerBoardRow } from "@/lib/domain/player-stats";
@@ -38,13 +39,17 @@ function MetricBars({ metric, rows, t }: { metric: Metric; rows: PlayerBoardRow[
   const best = leaders(values, metric.lowerIsBetter, digits);
   const max = metric.percent ? 100 : Math.max(0, ...values.map((v) => v ?? 0));
   const show = (v: number | null) => (metric.percent ? pct(v, 0) : fmt(v, 1));
+  const winner = best.length === 1 ? rows[best[0]] : null;
   return (
-    <figure className="rounded-lg border p-3">
+    <figure
+      className="rounded-lg border p-3"
+      style={winner ? { borderColor: `color-mix(in oklch, ${seatColor(winner.player.seat)} 45%, var(--border))` } : undefined}
+    >
       <figcaption className="mb-2 flex items-baseline justify-between gap-2 text-sm">
         <span className="font-medium">{metric.label}</span>
         {metric.lowerIsBetter && <span className="text-xs text-muted-foreground">{t("board.lowerBetter")}</span>}
       </figcaption>
-      <ul className="space-y-1.5">
+      <ul className="space-y-1">
         {rows.map((r, i) => {
           const v = values[i];
           const width = v === null || max === 0 ? 0 : (v / max) * 100;
@@ -52,21 +57,31 @@ function MetricBars({ metric, rows, t }: { metric: Metric; rows: PlayerBoardRow[
           return (
             <li
               key={r.player.id}
-              className="grid grid-cols-[4.25rem_1fr_2.75rem] items-center gap-2"
+              className={cn("-mx-1.5 grid grid-cols-[4.75rem_1fr_3.25rem] items-center gap-2 rounded-md px-1.5 py-1", lead && "leader-row")}
+              style={lead ? ({ "--glow": seatColor(r.player.seat) } as React.CSSProperties) : undefined}
               title={t("board.tooltip", { name: r.player.display_name, stat: metric.label, value: show(v), n: metric.samples(r) })}
             >
-              <span className="truncate text-xs text-muted-foreground">{r.player.display_name}</span>
-              <span className="relative h-2" aria-hidden>
-                {/* Thin bar from the zero baseline; only the data end is rounded. */}
+              <span className={cn("flex min-w-0 items-center gap-1 text-xs", lead ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                {lead && <Crown className="size-3.5 shrink-0" style={{ color: seatColor(r.player.seat) }} aria-hidden />}
+                <span className="truncate">{r.player.display_name}</span>
+              </span>
+              <span className={cn("relative", lead ? "h-3" : "h-2")} aria-hidden>
+                {/* Bar from the zero baseline; only the data end is rounded. The leader's glows, the rest step back. */}
                 {v !== null && v > 0 && (
                   <span
-                    className="absolute inset-y-0 left-0 min-w-[2px] rounded-r-[4px]"
+                    className={cn("absolute inset-y-0 left-0 min-w-[2px] overflow-hidden rounded-r-[4px]", lead ? "leader-bar" : "opacity-45")}
                     style={{ width: `${width}%`, background: seatColor(r.player.seat) }}
                   />
                 )}
               </span>
-              <span className={cn("text-right text-xs tabular", lead ? "font-semibold text-foreground" : "text-muted-foreground")}>
-                {show(v)}
+              <span className="text-right text-xs tabular">
+                {lead ? (
+                  <span className="inline-block rounded px-1.5 py-0.5 font-bold" style={{ background: seatColor(r.player.seat), color: "var(--on-seat)" }}>
+                    {show(v)}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{show(v)}</span>
+                )}
                 {lead && <span className="sr-only"> ({t("board.best")})</span>}
               </span>
             </li>
