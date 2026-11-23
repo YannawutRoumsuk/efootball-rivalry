@@ -7,6 +7,7 @@ import { AliasManager } from "@/components/squad/alias-manager";
 import { AwardList, tallyAwards } from "@/components/squad/award-chip";
 import { SquadExplorer } from "@/components/squad/squad-explorer";
 import { SquadMatchCard } from "@/components/squad/squad-match-card";
+import { SquadScoring } from "@/components/squad/squad-scoring";
 import { Button } from "@/components/ui/button";
 import { playerBoard } from "@/lib/domain/player-stats";
 import { squadOutcome, summarizeSquadPlayer } from "@/lib/domain/squad";
@@ -115,6 +116,8 @@ export default async function SquadPage() {
           );
         })}
       </ul>
+
+      <SquadScoring players={players} matches={matches} />
 
       <SquadExplorer players={players} summaries={summaries} matches={matches} comparison={comparison} />
 
