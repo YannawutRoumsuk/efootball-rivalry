@@ -5,33 +5,9 @@ import { describe, expect, it } from "vitest";
 import { mergeScreenReads, type SquadStats } from "@/lib/domain/squad";
 import { readSquadScreen, type SquadOcrResult } from "@/lib/ocr/squad";
 import { readFullTimeScreen } from "@/lib/ocr/fulltime";
+import { BVB_EXPECTED } from "./expected";
 
 const shot = (n: number) => readFileSync(join(__dirname, "..", "fixtures", "squad", `bvb-${n}.webp`));
-
-// Ground truth read by eye from the six real screenshots of one 3v3 match (BVB).
-export const BVB_EXPECTED: [SquadStats, SquadStats, SquadStats] = [
-  {
-    total_points: 4615, offensive_positioning: 960, shooting: 370, dueling: 2177, defensive_positioning: 130, passing: 303, dribbling: 675,
-    goals: 0, shots: 1, shots_on_target: 1, assists: 1, key_passes: 1, passes: 29, successful_passes: 16,
-    instrumental_passes: 10, dribbles: 23, successful_dribbles: 20, instrumental_dribbles: 9, receiving: 43, good_receives: 17, overlaps: 8,
-    runs_out_wide: 10, forward_runs: 25, offensive_receives: 1, intercepts: 17, tackles: 1, impactful_steals: 1,
-    frontal_presses: 37, presses_from_behind: 17, good_positioning_pct: 61, double_marks: 13, passes_obstructed: 42, players_marked: 35,
-  },
-  {
-    total_points: 4288, offensive_positioning: 591, shooting: 661, dueling: 1921, defensive_positioning: 375, passing: 265, dribbling: 475,
-    goals: 1, shots: 2, shots_on_target: 1, assists: 0, key_passes: 0, passes: 10, successful_passes: 8,
-    instrumental_passes: 11, dribbles: 15, successful_dribbles: 8, instrumental_dribbles: 10, receiving: 41, good_receives: 15, overlaps: 5,
-    runs_out_wide: 3, forward_runs: 17, offensive_receives: 1, intercepts: 14, tackles: 3, impactful_steals: 2,
-    frontal_presses: 62, presses_from_behind: 45, good_positioning_pct: 58, double_marks: 37, passes_obstructed: 42, players_marked: 34,
-  },
-  {
-    total_points: 2910, offensive_positioning: 539, shooting: 308, dueling: 1327, defensive_positioning: 306, passing: 187, dribbling: 243,
-    goals: 2, shots: 2, shots_on_target: 2, assists: 0, key_passes: 0, passes: 14, successful_passes: 12,
-    instrumental_passes: 8, dribbles: 15, successful_dribbles: 9, instrumental_dribbles: 5, receiving: 41, good_receives: 14, overlaps: 6,
-    runs_out_wide: 5, forward_runs: 7, offensive_receives: 1, intercepts: 4, tackles: 3, impactful_steals: 3,
-    frontal_presses: 47, presses_from_behind: 38, good_positioning_pct: 59, double_marks: 20, passes_obstructed: 45, players_marked: 45,
-  },
-];
 
 /** Every value OCR did read must be right; returns how many were left blank. */
 function checkRead(read: SquadOcrResult): number {

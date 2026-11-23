@@ -2,7 +2,16 @@ import "server-only";
 
 import sharp from "sharp";
 import { PSM, type Worker } from "tesseract.js";
-import { matchRowLabel, parseCell, type AwardTier, type SquadAward, type SquadRow, type SquadScreenRead } from "@/lib/domain/squad";
+import {
+  categorySum,
+  matchRowLabel,
+  parseCell,
+  type AwardTier,
+  type SquadAward,
+  type SquadRow,
+  type SquadScreenRead,
+  type SquadStats,
+} from "@/lib/domain/squad";
 import {
   decode,
   DIGIT_WHITELIST,
@@ -13,6 +22,11 @@ import {
   type Region,
   type Workers,
 } from "./fulltime";
+import { decodeTemplates, readGlyphs, segmentCell, type TemplateFile } from "./glyphs";
+import templateFile from "./glyph-templates.json";
+
+/** Digit samples cut from real screenshots (retrain with tests/ocr/glyphs.test.ts). */
+const TEMPLATES = decodeTemplates(templateFile as TemplateFile);
 
 /**
  * Reads one screenshot of the PvP 3v3 post-match table ("Total Points",
@@ -42,6 +56,8 @@ export interface SquadOcrResult extends SquadScreenRead {
   rows: string[];
   problems: string[];
   ms: number;
+  /** Cells the fast glyph matcher was unsure of, read by Tesseract instead. */
+  slowCells?: number;
 }
 
 const box = (grey: Grey, xOff: number, cy: number, hw: number, hh: number): Region => {
@@ -55,6 +71,26 @@ const box = (grey: Grey, xOff: number, cy: number, hw: number, hh: number): Regi
     height: Math.min(grey.height - top, Math.round(2 * hh * h)),
   };
 };
+
+/** The region of one stat cell: player column `column` (0–2) on the row centred at `y`. */
+export function cellRegion(grey: Grey, column: number, y: number): Region {
+  const g = GEOMETRY;
+  return box(grey, g.columns[column], y, g.cellHalfWidth, g.cellHalfHeight);
+}
+
+/** Row labels of a table screenshot with their heights (used to train the glyph templates). */
+export function locateRows(grey: Grey): Promise<Array<{ row: SquadRow; y: number }>> {
+  return runOcrJob((w) => findRowsInColumnMode(grey, w.eng));
+}
+
+async function findRowsInColumnMode(grey: Grey, worker: Worker): Promise<Array<{ row: SquadRow; y: number }>> {
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_COLUMN });
+  try {
+    return await findRows(grey, worker);
+  } finally {
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE });
+  }
+}
 
 /** Finds the row labels and their vertical centres (as a fraction of the height). */
 async function findRows(grey: Grey, worker: Worker): Promise<Array<{ row: SquadRow; y: number }>> {
@@ -138,6 +174,22 @@ async function readCell(grey: Grey, region: Region, row: SquadRow, worker: Worke
   return { values: null, note: ranked.length ? ranked.map((v) => `${v.values.join("/")}×${v.n}`).join(" ") : `"${seen.find(Boolean) ?? ""}"` };
 }
 
+/**
+ * Fast path: the cell's glyphs matched against the digit templates. Null
+ * when any glyph is unclear or the number doesn't fit the row, so the caller
+ * can fall back to Tesseract.
+ */
+export function readCellFast(grey: Grey, region: Region, row: SquadRow): number[] | null {
+  const text = readGlyphs(segmentCell(grey, region), TEMPLATES);
+  if (text === null) return null;
+  const signed = row.group === "rating";
+  const values = parseCell(text.replace("(", " ("), row.format, signed);
+  if (!values || values.some((v) => v > row.max || v < (signed ? -row.max : 0))) return null;
+  // Every pair is "total (successful part)".
+  if (row.format === "pair" && values[1] > values[0]) return null;
+  return values;
+}
+
 async function readText(grey: Grey, region: Region, worker: Worker): Promise<string | null> {
   for (const threshold of THRESHOLDS) {
     const { data } = await worker.recognize(await prepare(grey, region, threshold, 70));
@@ -153,13 +205,7 @@ async function read(source: Buffer, w: Workers): Promise<SquadOcrResult> {
   const grey = await decode(source);
   if (!grey) return { ...empty, problems: ["not a landscape screenshot"] };
 
-  await w.eng.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_COLUMN });
-  let rows: Array<{ row: SquadRow; y: number }>;
-  try {
-    rows = await findRows(grey, w.eng);
-  } finally {
-    await w.eng.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE });
-  }
+  const rows = await findRowsInColumnMode(grey, w.eng);
   if (rows.length < MIN_ROWS) {
     const awards = await readAwards(source, w);
     if (awards) return { ...empty, names: awards.names, awards: awards.titles, ms: Date.now() - t0 };
@@ -169,21 +215,11 @@ async function read(source: Buffer, w: Workers): Promise<SquadOcrResult> {
   const g = GEOMETRY;
   const problems: string[] = [];
   const values: SquadScreenRead["values"] = {};
-  await w.digits.setParameters({ tessedit_char_whitelist: "0123456789()%- " });
-  try {
-    for (const { row, y } of rows) {
-      const cells: Array<number[] | null> = [];
-      for (const [i, x] of g.columns.entries()) {
-        const cell = await readCell(grey, box(grey, x, y, g.cellHalfWidth, g.cellHalfHeight), row, w.digits);
-        if (!cell.values) problems.push(`${row.label} #${i + 1}: ${cell.note}`);
-        cells.push(cell.values);
-      }
-      row.keys.forEach((key, k) => {
-        values[key] = cells.map((c) => (c ? c[k] : null));
-      });
-    }
-  } finally {
-    await w.digits.setParameters({ tessedit_char_whitelist: DIGIT_WHITELIST });
+  const { cells, slowCells } = await readTableCells(grey, rows, w.digits, problems);
+  for (const { row } of rows) {
+    row.keys.forEach((key, k) => {
+      values[key] = cells.get(row)!.map((c) => (c ? c[k] : null));
+    });
   }
 
   const nameY = g.names.top + g.names.height / 2;
@@ -191,7 +227,56 @@ async function read(source: Buffer, w: Workers): Promise<SquadOcrResult> {
   for (const x of g.columns) names.push(await readText(grey, box(grey, x, nameY, g.names.halfWidth, g.names.height / 2), w.eng));
   const team = await readText(grey, box(grey, g.team.from + g.team.width / 2, nameY, g.team.width / 2, g.names.height / 2), w.eng);
 
-  return { names, team, values, rows: rows.map((r) => r.row.label), problems, ms: Date.now() - t0 };
+  return { names, team, values, rows: rows.map((r) => r.row.label), problems, ms: Date.now() - t0, slowCells };
+}
+
+const isTotal = (row: SquadRow) => row.keys[0] === "total_points";
+
+/**
+ * Every cell of the rows found: glyph templates first (well under a
+ * millisecond a cell), Tesseract's voting reader only for cells they can't
+ * vouch for. Total Points, in a stylised font, is never OCR-ed: it is the
+ * sum of the six evaluation categories (here when this screen has them all,
+ * otherwise when the screens are merged).
+ */
+async function readTableCells(
+  grey: Grey,
+  rows: ReadonlyArray<{ row: SquadRow; y: number }>,
+  digits: Worker,
+  problems: string[],
+): Promise<{ cells: Map<SquadRow, Array<number[] | null>>; slowCells: number }> {
+  const cells = new Map<SquadRow, Array<number[] | null>>();
+  const pending: Array<{ row: SquadRow; y: number; col: number }> = [];
+  for (const { row, y } of rows) {
+    const line = GEOMETRY.columns.map((_, col) => (isTotal(row) ? null : readCellFast(grey, cellRegion(grey, col, y), row)));
+    line.forEach((v, col) => {
+      if (v === null) pending.push({ row, y, col });
+    });
+    cells.set(row, line);
+  }
+
+  const columnStats = (col: number): SquadStats =>
+    Object.fromEntries([...cells].flatMap(([row, line]) => row.keys.map((key, k) => [key, line[col]?.[k] ?? null]))) as SquadStats;
+  let slowCells = 0;
+  let whitelisted = false;
+  const slowRead = async ({ row, y, col }: { row: SquadRow; y: number; col: number }) => {
+    if (!whitelisted) {
+      whitelisted = true; // before the await, so a failed call still restores the whitelist
+      await digits.setParameters({ tessedit_char_whitelist: "0123456789()%- " });
+    }
+    slowCells += 1;
+    const cell = await readCell(grey, cellRegion(grey, col, y), row, digits);
+    if (!cell.values) problems.push(`${row.label} #${col + 1}: ${cell.note}`);
+    cells.get(row)![col] = cell.values;
+  };
+  try {
+    for (const p of pending.filter((p) => !isTotal(p.row))) await slowRead(p);
+    // Not worth OCR (Tesseract rarely agrees on that font): mergeScreenReads sums the categories across screens.
+    for (const p of pending.filter((p) => isTotal(p.row))) cells.get(p.row)![p.col] = ((sum) => (sum === null ? null : [sum]))(categorySum(columnStats(p.col)));
+  } finally {
+    if (whitelisted) await digits.setParameters({ tessedit_char_whitelist: DIGIT_WHITELIST });
+  }
+  return { cells, slowCells };
 }
 
 // ---------------------------------------------------------------------------
