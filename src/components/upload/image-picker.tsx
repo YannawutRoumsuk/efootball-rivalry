@@ -2,6 +2,7 @@
 
 import { ImagePlus } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
+import { usePasteImages } from "@/hooks/use-paste-images";
 import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,7 @@ export function ImagePicker({ onPick, disabled }: ImagePickerProps) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const t = useT();
+  usePasteImages(([file]) => onPick(file), !disabled);
 
   function onDrop(e: DragEvent) {
     e.preventDefault();
@@ -49,6 +51,7 @@ export function ImagePicker({ onPick, disabled }: ImagePickerProps) {
       >
         {t("picker.cta")}
       </button>
+      <p className="mt-2 hidden text-xs text-muted-foreground sm:block">{t("paste.hint")}</p>
       <input
         ref={input}
         type="file"

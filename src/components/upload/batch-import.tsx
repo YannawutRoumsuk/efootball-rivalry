@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { usePasteImages } from "@/hooks/use-paste-images";
 import { ApiError } from "@/lib/api/envelope";
 import { seatColor } from "@/components/player/seat-scope";
 import { emptyDraft, playersChosen, toSideInputs, type MatchDraft } from "@/lib/client/draft";
@@ -77,7 +78,9 @@ export function BatchImport({ roster, meId }: { roster: RosterPlayer[]; meId: st
     }
   }
 
-  async function onFiles(files: FileList | null) {
+  usePasteImages((files) => void onFiles(files), items.length < MAX_FILES);
+
+  async function onFiles(files: FileList | File[] | null) {
     if (!files?.length) return;
     const list = [...files].slice(0, MAX_FILES - items.length);
     if (files.length > list.length) toast.warning(t("batch.max", { n: MAX_FILES }));
@@ -157,6 +160,7 @@ export function BatchImport({ roster, meId }: { roster: RosterPlayer[]; meId: st
         <div className="flex-1">
           <p className="font-semibold">{t("batch.add")}</p>
           <p className="text-sm text-muted-foreground">{t("batch.addBody")}</p>
+          <p className="mt-1 hidden text-xs text-muted-foreground sm:block">{t("paste.hint")}</p>
         </div>
         <Button className="h-11" onClick={() => picker.current?.click()} disabled={items.length >= MAX_FILES}>
           <Images /> {t("batch.choose")}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { usePasteImages } from "@/hooks/use-paste-images";
 import { Progress } from "@/components/ui/progress";
 import {
   columnsToEditor,
@@ -56,6 +57,8 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
   const tableShots = useMemo(() => shots.filter(isPlayersShot), [shots]);
   const merged = useMemo(() => mergeScreenReads(tableShots.map((s) => s.response.read), aliases), [tableShots, aliases]);
   const flagged = useMemo(() => new Set(merged.conflicts.map((c) => `${c.slot}:${c.key}`)), [merged]);
+
+  usePasteImages((files) => void addFiles(files), !saving);
 
   async function addFiles(picked: File[]) {
     if (busy || picked.length === 0) return;
@@ -198,6 +201,7 @@ export function SquadUploadFlow({ roster, aliases }: Props) {
             <Button className="mt-6 h-11 px-6" onClick={() => input.current?.click()}>
               {t("squad.up.pick")}
             </Button>
+            <p className="mt-2 hidden text-xs text-muted-foreground sm:block">{t("paste.hint")}</p>
             {notes.length > 0 && <Notes notes={notes} />}
           </>
         )}

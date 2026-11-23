@@ -281,6 +281,7 @@ export const th: Record<keyof typeof en, string> = {
   "upload.progress": "ขั้นตอน",
   "picker.title": "อัปโหลดภาพหน้า Full Time",
   "picker.body": "หน้าสถิติที่มีตัวเลขของทั้งสองฝั่ง รองรับ JPG, PNG, WEBP หรือ HEIC ไม่เกิน 10 MB",
+  "paste.hint": "หรือกด Ctrl+V วางรูปที่คัดลอกไว้ได้เลย",
   "picker.cta": "เลือกภาพ",
   "upload.manual": "กรอกผลเอง",
   "upload.batchLink": "นำเข้าภาพเก่าหลายรูป",

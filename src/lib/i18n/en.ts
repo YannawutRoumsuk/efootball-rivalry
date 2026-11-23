@@ -295,6 +295,7 @@ export const en = {
   "upload.progress": "Progress",
   "picker.title": "Upload the Full Time screenshot",
   "picker.body": "The stats screen with both sides' numbers. JPG, PNG, WEBP or HEIC up to 10 MB.",
+  "paste.hint": "or paste a screenshot with Ctrl+V",
   "picker.cta": "Choose screenshot",
   "upload.manual": "Enter a result manually",
   "upload.batchLink": "Import several old screenshots",
