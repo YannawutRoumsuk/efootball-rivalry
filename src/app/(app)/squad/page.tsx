@@ -9,6 +9,7 @@ import { SquadExplorer } from "@/components/squad/squad-explorer";
 import { SquadMatchCard } from "@/components/squad/squad-match-card";
 import { SquadScoring } from "@/components/squad/squad-scoring";
 import { Button } from "@/components/ui/button";
+import { FormulaHint } from "@/components/ui/formula-hint";
 import { playerBoard } from "@/lib/domain/player-stats";
 import { squadOutcome, summarizeSquadPlayer } from "@/lib/domain/squad";
 import { compareModes } from "@/lib/domain/squad-compare";
@@ -86,7 +87,8 @@ export default async function SquadPage() {
         {active.map((p) => {
           const s = summaries.find((x) => x.playerId === p.id)!;
           return (
-            <li key={p.id}>
+            <li key={p.id} className="relative">
+              <FormulaHint id="avgPoints" corner className="top-auto right-3 bottom-3" />
               <Link
                 href={`/players/${p.id}`}
                 className="panel group relative block overflow-hidden p-4 transition-colors hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
@@ -106,7 +108,7 @@ export default async function SquadPage() {
                 <span className="mt-2 block text-3xl font-black tabular">{fmt(s.stats.total_points.average, 0)}</span>
                 <span className="block text-xs text-muted-foreground">{t("squad.kpi.avgPoints")}</span>
                 <AwardList awards={tallyAwards(matches.map((m) => m.players.find((x) => x.player_id === p.id)?.awards)).slice(0, 3)} size="xs" className="mt-2" />
-                <span className="mt-2 flex gap-3 text-xs text-muted-foreground tabular">
+                <span className="mt-2 flex gap-3 pr-6 text-xs text-muted-foreground tabular">
                   <span>{t("squad.games", { n: s.games })}</span>
                   <span>{t("squad.ga", { n: s.goalContributions })}</span>
                   <span className="ml-auto opacity-0 transition-opacity group-hover:opacity-100">{t("profile.view")} →</span>

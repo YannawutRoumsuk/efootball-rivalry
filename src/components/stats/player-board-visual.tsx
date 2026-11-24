@@ -1,5 +1,6 @@
 import { Crown } from "lucide-react";
 import { seatColor } from "@/components/player/seat-scope";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import { ELO, type EloPlayer } from "@/lib/domain/elo";
 import { leaders, type BoardStat, type PlayerBoardRow } from "@/lib/domain/player-stats";
 import { fmt, pct } from "@/lib/format";
@@ -22,6 +23,8 @@ interface Metric {
   /** Percentages share a 0–100 axis; everything else scales to the row's largest value. */
   percent?: boolean;
   lowerIsBetter?: boolean;
+  /** How the number is derived (Σ badge). */
+  formula: FormulaId;
 }
 
 const stat = (t: Translate, k: BoardStat, extra: Partial<Metric> = {}): Metric => ({
@@ -29,6 +32,7 @@ const stat = (t: Translate, k: BoardStat, extra: Partial<Metric> = {}): Metric =
   value: (r) => r.stats[k].average,
   samples: (r) => r.stats[k].samples,
   percent: k === "possession_pct",
+  formula: k === "possession_pct" ? "possession" : "average",
   ...extra,
 });
 
@@ -46,7 +50,10 @@ function MetricBars({ metric, rows, t }: { metric: Metric; rows: PlayerBoardRow[
       style={winner ? { borderColor: `color-mix(in oklch, ${seatColor(winner.player.seat)} 45%, var(--border))` } : undefined}
     >
       <figcaption className="mb-2 flex items-baseline justify-between gap-2 text-sm">
-        <span className="font-medium">{metric.label}</span>
+        <span className="inline-flex items-center gap-1.5 font-medium">
+          {metric.label}
+          <FormulaHint id={metric.formula} />
+        </span>
         {metric.lowerIsBetter && <span className="text-xs text-muted-foreground">{t("board.lowerBetter")}</span>}
       </figcaption>
       <ul className="space-y-1">
@@ -99,11 +106,11 @@ export async function PlayerBoardVisual({ rows, elo, meId }: Props) {
     {
       title: t("board.attack"),
       metrics: [
-        { label: t("board.goalsFor"), value: (r) => r.goalsFor.average, samples: (r) => r.goalsFor.samples },
+        { label: t("board.goalsFor"), value: (r) => r.goalsFor.average, samples: (r) => r.goalsFor.samples, formula: "average" },
         stat(t, "shots"),
         stat(t, "shots_on_target"),
-        { label: t("cmp.accuracy"), value: (r) => r.shotAccuracy, samples: (r) => r.stats.shots.samples, percent: true },
-        { label: t("cmp.conversion"), value: (r) => r.conversion, samples: (r) => r.stats.shots.samples, percent: true },
+        { label: t("cmp.accuracy"), value: (r) => r.shotAccuracy, samples: (r) => r.stats.shots.samples, percent: true, formula: "shotAccuracy" },
+        { label: t("cmp.conversion"), value: (r) => r.conversion, samples: (r) => r.stats.shots.samples, percent: true, formula: "conversion" },
         stat(t, "corners"),
         stat(t, "crosses"),
       ],
@@ -114,18 +121,18 @@ export async function PlayerBoardVisual({ rows, elo, meId }: Props) {
         stat(t, "possession_pct"),
         stat(t, "passes"),
         stat(t, "successful_passes"),
-        { label: t("cmp.passCompletion"), value: (r) => r.passCompletion, samples: (r) => r.stats.passes.samples, percent: true },
+        { label: t("cmp.passCompletion"), value: (r) => r.passCompletion, samples: (r) => r.stats.passes.samples, percent: true, formula: "passCompletion" },
         stat(t, "free_kicks"),
       ],
     },
     {
       title: t("board.defence"),
       metrics: [
-        { label: t("board.goalsAgainst"), value: (r) => r.goalsAgainst.average, samples: (r) => r.goalsAgainst.samples, lowerIsBetter: true },
+        { label: t("board.goalsAgainst"), value: (r) => r.goalsAgainst.average, samples: (r) => r.goalsAgainst.samples, lowerIsBetter: true, formula: "average" },
         stat(t, "interceptions"),
         stat(t, "tackles"),
         stat(t, "saves"),
-        { label: t("board.cleanSheets"), value: (r) => (r.games ? (r.cleanSheets / r.games) * 100 : null), samples: (r) => r.games, percent: true },
+        { label: t("board.cleanSheets"), value: (r) => (r.games ? (r.cleanSheets / r.games) * 100 : null), samples: (r) => r.games, percent: true, formula: "cleanSheets" },
       ],
     },
     {
@@ -159,7 +166,8 @@ export async function PlayerBoardVisual({ rows, elo, meId }: Props) {
         {rows.map((r) => {
           const rating = elo.get(r.player.id) ?? { rating: ELO.start, games: 0, provisional: true, lastDelta: 0 };
           return (
-            <li key={r.player.id} className="overflow-hidden rounded-lg border">
+            <li key={r.player.id} className="relative overflow-hidden rounded-lg border">
+              <FormulaHint id="elo" corner className="top-2.5" />
               <div className="h-1" style={{ background: seatColor(r.player.seat) }} aria-hidden />
               <div className="space-y-1 p-2.5 sm:p-3">
                 <p className="truncate text-xs font-medium">{r.player.display_name}</p>
@@ -170,7 +178,10 @@ export async function PlayerBoardVisual({ rows, elo, meId }: Props) {
                 <dl className="grid grid-cols-2 gap-x-2 pt-1 text-[0.7rem] text-muted-foreground">
                   <dt>{t("board.games")}</dt>
                   <dd className="text-right text-foreground tabular">{r.games}</dd>
-                  <dt>{t("board.winShort")}</dt>
+                  <dt className="inline-flex items-center gap-1">
+                    {t("board.winShort")}
+                    <FormulaHint id="winRate" className="size-3.5" />
+                  </dt>
                   <dd className="text-right text-foreground tabular">{pct(r.winRate, 0)}</dd>
                 </dl>
               </div>

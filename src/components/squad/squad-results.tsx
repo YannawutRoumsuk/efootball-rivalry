@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import {
   goalMargin,
   matchTime,
@@ -25,11 +26,14 @@ const OUTCOME_COLOR: Record<SquadOutcome, string> = {
   L: "var(--color-red-500, #ef4444)",
 };
 
-function Block({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+function Block({ title, sub, children, formula }: { title: string; sub?: string; children: ReactNode; formula?: FormulaId }) {
   return (
     <section className="space-y-2">
       <div>
-        <h3 className="text-sm font-semibold">{title}</h3>
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+          {title}
+          {formula && <FormulaHint id={formula} />}
+        </h3>
         {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
       </div>
       {children}
@@ -81,7 +85,7 @@ export function ResultsView({ players, matches }: { players: ExplorerPlayer[]; m
         </ul>
       </Block>
 
-      <Block title={t("squad.res.team")} sub={t("squad.res.teamSub")}>
+      <Block title={t("squad.res.team")} sub={t("squad.res.teamSub")} formula="outcomeSplit">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[22rem] text-sm">
             <thead>
@@ -128,7 +132,7 @@ export function ResultsView({ players, matches }: { players: ExplorerPlayer[]; m
 
       </>
       )}
-      <Block title={t("squad.ins.title")} sub={t("squad.ins.sub")}>
+      <Block title={t("squad.ins.title")} sub={t("squad.ins.sub")} formula="lift">
         <SquadInsights players={players} summaries={summaries} />
       </Block>
     </div>

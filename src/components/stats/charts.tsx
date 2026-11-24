@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import {
   Bar,
   BarChart,
@@ -58,9 +59,10 @@ function tooltip(format: (v: number) => string = (v) => fmt(v)) {
   );
 }
 
-function ChartCard({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer?: ReactNode }) {
+function ChartCard({ title, subtitle, children, footer, formula }: { title: string; subtitle: string; children: ReactNode; footer?: ReactNode; formula?: FormulaId }) {
   return (
-    <section className="panel p-4 sm:p-5">
+    <section className="panel relative p-4 sm:p-5">
+      {formula && <FormulaHint id={formula} corner className="top-3 right-3" />}
       <h2 className="text-sm font-semibold">{title}</h2>
       <p className="mb-3 text-xs text-muted-foreground">{subtitle}</p>
       <div className="h-56 sm:h-64">
@@ -73,10 +75,21 @@ function ChartCard({ title, subtitle, children, footer }: { title: string; subti
   );
 }
 
-function AvgPair({ label, values, format = (v) => fmt(v) }: { label: string; values: [number | null, number | null]; format?: (v: number | null) => string }) {
+function AvgPair({
+  label,
+  values,
+  format = (v) => fmt(v),
+  formula = "average",
+}: {
+  label: string;
+  values: [number | null, number | null];
+  format?: (v: number | null) => string;
+  formula?: FormulaId;
+}) {
   return (
     <span className="inline-flex items-center gap-1.5">
       {label}: <strong className="text-player-a">{format(values[0])}</strong> / <strong className="text-player-b">{format(values[1])}</strong>
+      <FormulaHint id={formula} />
     </span>
   );
 }
@@ -125,7 +138,7 @@ export function StatsCharts({ points, names, averages }: ChartsProps) {
         </BarChart>
       </ChartCard>
 
-      <ChartCard title={t("chart.winRate.title")} subtitle={t("chart.winRate.sub")}>
+      <ChartCard title={t("chart.winRate.title")} subtitle={t("chart.winRate.sub")} formula="winRate">
         <LineChart data={points} margin={{ left: -18, right: 8, top: 4 }}>
           {grid}
           <XAxis dataKey="label" {...axis} minTickGap={16} />
@@ -139,7 +152,7 @@ export function StatsCharts({ points, names, averages }: ChartsProps) {
         </LineChart>
       </ChartCard>
 
-      <ChartCard title={t("chart.possession.title")} subtitle={t("chart.possession.sub")} footer={<AvgPair label={t("chart.avgPossession")} values={averages.possession} format={(v) => pct(v, 1)} />}>
+      <ChartCard title={t("chart.possession.title")} subtitle={t("chart.possession.sub")} footer={<AvgPair label={t("chart.avgPossession")} values={averages.possession} format={(v) => pct(v, 1)} formula="possession" />}>
         <LineChart data={points} margin={{ left: -18, right: 8, top: 4 }}>
           {grid}
           <XAxis dataKey="label" {...axis} minTickGap={16} />
@@ -155,7 +168,7 @@ export function StatsCharts({ points, names, averages }: ChartsProps) {
       <ChartCard
         title={t("chart.shooting.title")}
         subtitle={t("chart.shooting.sub")}
-        footer={<AvgPair label={t("chart.accuracyFooter")} values={averages.accuracy} format={(v) => pct(v, 1)} />}
+        footer={<AvgPair label={t("chart.accuracyFooter")} values={averages.accuracy} format={(v) => pct(v, 1)} formula="shotAccuracy" />}
       >
         <BarChart
           data={[
@@ -182,7 +195,7 @@ export function StatsCharts({ points, names, averages }: ChartsProps) {
           <span className="flex flex-wrap gap-x-4 gap-y-1">
             <AvgPair label={t("chart.avgPasses")} values={averages.passes} />
             <AvgPair label={t("chart.avgSuccessful")} values={averages.successfulPasses} />
-            <AvgPair label={t("chart.completion")} values={averages.passCompletion} format={(v) => pct(v, 1)} />
+            <AvgPair label={t("chart.completion")} values={averages.passCompletion} format={(v) => pct(v, 1)} formula="passCompletion" />
           </span>
         }
       >

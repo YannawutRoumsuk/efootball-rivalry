@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { PlayerAvatar } from "@/components/player/player-avatar";
 import { seatColor, seatStyle } from "@/components/player/seat-scope";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import { ELO, type EloPlayer } from "@/lib/domain/elo";
 import { BOARD_STATS, leaders, LOWER_IS_BETTER, type PlayerBoardRow } from "@/lib/domain/player-stats";
 import { fmt, pct } from "@/lib/format";
@@ -25,6 +26,8 @@ interface Line {
   digits?: number;
   /** Rows like "games played" are context, not a contest. */
   noLeader?: boolean;
+  /** Derived numbers get a Σ badge explaining the calculation. */
+  formula?: FormulaId;
 }
 
 const avg = (v: number | null) => fmt(v, 1);
@@ -33,34 +36,36 @@ const rate = (v: number | null) => pct(v, 0);
 /** Everyone side by side: per-game averages are fair even when players played different numbers of games. */
 export async function PlayerBoard({ rows, elo, meId, bare = false }: PlayerBoardProps) {
   const t = await getT();
-  const sections: Array<{ title: string; lines: Line[] }> = [
+  const sections: Array<{ title: string; formula?: FormulaId; lines: Line[] }> = [
     {
       title: t("board.overview"),
       lines: [
         { label: t("board.games"), value: (r) => r.games, format: (v) => fmt(v, 0), noLeader: true },
-        { label: t("elo.col"), value: (r) => (r.games ? (elo.get(r.player.id)?.rating ?? ELO.start) : null), format: (v) => (v === null ? "—" : String(Math.round(v))), digits: 0 },
-        { label: t("kpi.winRate"), value: (r) => r.winRate, format: rate, digits: 0 },
-        { label: t("board.goalsFor"), value: (r) => r.goalsFor.average, format: avg },
-        { label: t("board.goalsAgainst"), value: (r) => r.goalsAgainst.average, format: avg, lowerIsBetter: true },
-        { label: t("board.cleanSheets"), value: (r) => (r.games ? (r.cleanSheets / r.games) * 100 : null), format: rate, digits: 0 },
+        { label: t("elo.col"), value: (r) => (r.games ? (elo.get(r.player.id)?.rating ?? ELO.start) : null), format: (v) => (v === null ? "—" : String(Math.round(v))), digits: 0, formula: "elo" },
+        { label: t("kpi.winRate"), value: (r) => r.winRate, format: rate, digits: 0, formula: "winRate" },
+        { label: t("board.goalsFor"), value: (r) => r.goalsFor.average, format: avg, formula: "average" },
+        { label: t("board.goalsAgainst"), value: (r) => r.goalsAgainst.average, format: avg, lowerIsBetter: true, formula: "average" },
+        { label: t("board.cleanSheets"), value: (r) => (r.games ? (r.cleanSheets / r.games) * 100 : null), format: rate, digits: 0, formula: "cleanSheets" },
       ],
     },
     {
       title: t("board.perGame"),
+      formula: "average",
       lines: BOARD_STATS.map((k) => ({
         label: t(`stat.${k}` as MessageKey),
         value: (r: PlayerBoardRow) => r.stats[k].average,
         format: k === "possession_pct" ? rate : avg,
         digits: k === "possession_pct" ? 0 : 1,
         lowerIsBetter: LOWER_IS_BETTER.has(k),
+        formula: k === "possession_pct" ? ("possession" as const) : undefined,
       })),
     },
     {
       title: t("board.rates"),
       lines: [
-        { label: t("cmp.accuracy"), value: (r) => r.shotAccuracy, format: rate, digits: 0 },
-        { label: t("cmp.conversion"), value: (r) => r.conversion, format: rate, digits: 0 },
-        { label: t("cmp.passCompletion"), value: (r) => r.passCompletion, format: rate, digits: 0 },
+        { label: t("cmp.accuracy"), value: (r) => r.shotAccuracy, format: rate, digits: 0, formula: "shotAccuracy" },
+        { label: t("cmp.conversion"), value: (r) => r.conversion, format: rate, digits: 0, formula: "conversion" },
+        { label: t("cmp.passCompletion"), value: (r) => r.passCompletion, format: rate, digits: 0, formula: "passCompletion" },
       ],
     },
   ];
@@ -98,7 +103,10 @@ export async function PlayerBoard({ rows, elo, meId, bare = false }: PlayerBoard
               <Fragment key={s.title}>
                 <tr className="border-t bg-surface-2">
                   <th scope="colgroup" colSpan={rows.length + 1} className="py-1.5 pl-4 text-left text-xs font-medium text-muted-foreground sm:pl-6">
-                    {s.title}
+                    <span className="inline-flex items-center gap-1.5">
+                      {s.title}
+                      {s.formula && <FormulaHint id={s.formula} />}
+                    </span>
                   </th>
                 </tr>
                 {s.lines.map((line) => {
@@ -107,7 +115,10 @@ export async function PlayerBoard({ rows, elo, meId, bare = false }: PlayerBoard
                   return (
                     <tr key={line.label} className="border-t">
                       <th scope="row" className="py-2 pl-4 text-left text-xs font-normal text-muted-foreground sm:pl-6 sm:text-sm">
-                        {line.label}
+                        <span className="inline-flex items-center gap-1.5">
+                          {line.label}
+                          {line.formula && <FormulaHint id={line.formula} />}
+                        </span>
                       </th>
                       {rows.map((r, i) => {
                         const lead = best.includes(i);

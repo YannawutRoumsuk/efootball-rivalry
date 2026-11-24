@@ -14,6 +14,7 @@ import { summarizeSquadPlayer } from "@/lib/domain/squad";
 import { COMPARE_METRICS, compareModes } from "@/lib/domain/squad-compare";
 import { loadSquadMatches } from "@/lib/server/squad";
 import { Button } from "@/components/ui/button";
+import { FormulaHint } from "@/components/ui/formula-hint";
 import { computeElo } from "@/lib/domain/elo";
 import { allPairs, matchesBetween, pairFor, pointsTimeline, resolvePair, type PointsPoint } from "@/lib/domain/league";
 import { listSeasons, matchesInScope, parseScope, type Scope } from "@/lib/domain/seasons";
@@ -83,7 +84,10 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
   const vsSection = bothModes.length > 0 && (
     <section className="panel space-y-3 p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold">{t("squad.tab.vs1v1")}</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+          {t("squad.tab.vs1v1")}
+          <FormulaHint id="modes" />
+        </h2>
         <Link href="/squad" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
           <Shield className="size-3.5" aria-hidden /> {t("squad.title")} →
         </Link>
@@ -178,12 +182,13 @@ export default async function StatsPage({ searchParams }: PageProps<"/stats">) {
         <>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: t("kpi.winRate"), a: pct(s.a.winRate), b: pct(s.b.winRate) },
-              { label: t("cmp.accuracy"), a: pct(s.a.shotAccuracy), b: pct(s.b.shotAccuracy) },
-              { label: t("cmp.conversion"), a: pct(s.a.conversionRate), b: pct(s.b.conversionRate) },
-              { label: t("cmp.passCompletion"), a: pct(s.a.passCompletion), b: pct(s.b.passCompletion) },
+              { label: t("kpi.winRate"), a: pct(s.a.winRate), b: pct(s.b.winRate), formula: "winRate" as const },
+              { label: t("cmp.accuracy"), a: pct(s.a.shotAccuracy), b: pct(s.b.shotAccuracy), formula: "shotAccuracy" as const },
+              { label: t("cmp.conversion"), a: pct(s.a.conversionRate), b: pct(s.b.conversionRate), formula: "conversion" as const },
+              { label: t("cmp.passCompletion"), a: pct(s.a.passCompletion), b: pct(s.b.passCompletion), formula: "passCompletion" as const },
             ].map((k) => (
-              <div key={k.label} className="panel p-3.5">
+              <div key={k.label} className="panel relative p-3.5">
+                <FormulaHint id={k.formula} corner className="top-2 right-2" />
                 <dt className="text-xs text-muted-foreground">{k.label}</dt>
                 <dd className="mt-1 flex items-baseline gap-2 text-lg font-semibold tabular">
                   <span className="text-player-a">{k.a}</span>

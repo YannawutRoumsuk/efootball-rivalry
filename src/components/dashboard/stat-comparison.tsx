@@ -1,3 +1,4 @@
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerPair } from "@/lib/domain/types";
 import { fmt, pct } from "@/lib/format";
@@ -12,12 +13,13 @@ interface Row {
   format: (v: number | null) => string;
   /** Some stats (fouls) are better when lower; most are better when higher. */
   higherIsBetter?: boolean;
-  hint?: string;
+  formula?: FormulaId;
 }
 
 interface Group {
   title: string;
   tag: string;
+  formula?: FormulaId;
   rows: Row[];
 }
 
@@ -37,9 +39,10 @@ function groups(s: RivalrySummary, t: Translate): Group[] {
     {
       title: t("cmp.perMatch"),
       tag: t("cmp.perMatchTag"),
+      formula: "average",
       rows: [
         { label: t("stat.goals"), a: s.a.avgGoalsFor, b: s.b.avgGoalsFor, format: n },
-        { label: t("stat.possession_pct"), a: s.a.possession.average, b: s.b.possession.average, format: p },
+        { label: t("stat.possession_pct"), a: s.a.possession.average, b: s.b.possession.average, format: p, formula: "possession" },
         { label: t("stat.shots"), a: s.a.shots.average, b: s.b.shots.average, format: n },
         { label: t("stat.shots_on_target"), a: s.a.shotsOnTarget.average, b: s.b.shotsOnTarget.average, format: n },
         { label: t("stat.passes"), a: s.a.passes.average, b: s.b.passes.average, format: n },
@@ -52,9 +55,9 @@ function groups(s: RivalrySummary, t: Translate): Group[] {
       title: t("cmp.rates"),
       tag: t("cmp.ratesTag"),
       rows: [
-        { label: t("cmp.accuracy"), a: s.a.shotAccuracy, b: s.b.shotAccuracy, format: p, hint: t("cmp.accuracyHint") },
-        { label: t("cmp.conversion"), a: s.a.conversionRate, b: s.b.conversionRate, format: p, hint: t("cmp.conversionHint") },
-        { label: t("cmp.passCompletion"), a: s.a.passCompletion, b: s.b.passCompletion, format: p, hint: t("cmp.passCompletionHint") },
+        { label: t("cmp.accuracy"), a: s.a.shotAccuracy, b: s.b.shotAccuracy, format: p, formula: "shotAccuracy" },
+        { label: t("cmp.conversion"), a: s.a.conversionRate, b: s.b.conversionRate, format: p, formula: "conversion" },
+        { label: t("cmp.passCompletion"), a: s.a.passCompletion, b: s.b.passCompletion, format: p, formula: "passCompletion" },
       ],
     },
   ];
@@ -72,8 +75,9 @@ function ComparisonRow({ row }: { row: Row }) {
         {row.format(a)}
       </span>
       <div className="min-w-0">
-        <p className="mb-1.5 text-center text-xs text-muted-foreground" title={row.hint}>
+        <p className="mb-1.5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
           {row.label}
+          {row.formula && <FormulaHint id={row.formula} />}
         </p>
         <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
           {a !== null && b !== null && total > 0 ? (
@@ -110,6 +114,7 @@ export async function StatComparison({ summary, pair }: { summary: RivalrySummar
             <div className="mb-1 flex items-baseline gap-2 border-b pb-1.5">
               <h3 className="text-sm font-medium">{g.title}</h3>
               <span className="text-xs text-muted-foreground">{g.tag}</span>
+              {g.formula && <FormulaHint id={g.formula} className="self-center" />}
             </div>
             {g.rows.map((r) => (
               <ComparisonRow key={`${g.title}-${r.label}`} row={r} />

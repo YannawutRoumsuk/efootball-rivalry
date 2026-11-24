@@ -2,6 +2,7 @@ import { Crosshair, Flame, Goal, ShieldCheck, Swords, Trophy, TrendingUp, Zap, t
 import Link from "next/link";
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerKey, PlayerPair } from "@/lib/domain/types";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import { pct } from "@/lib/format";
 import type { Translate } from "@/lib/i18n/core";
 import { getT } from "@/lib/i18n/server";
@@ -16,6 +17,7 @@ interface Card {
   caption: string;
   matchId?: string;
   featured?: boolean;
+  formula?: FormulaId;
 }
 
 function cards(s: RivalrySummary, pair: PlayerPair, t: Translate): Card[] {
@@ -104,6 +106,7 @@ function cards(s: RivalrySummary, pair: PlayerPair, t: Translate): Card[] {
       who: acc.k,
       caption: `${name(acc.k)} · ${acc.onTarget}/${acc.shots} · #${acc.matchNo}`,
       matchId: acc.matchId,
+      formula: "matchAccuracy",
     });
   }
   return out;
@@ -136,7 +139,8 @@ export async function Highlights({ summary, pair }: { summary: RivalrySummary; p
             </div>
           );
           return (
-            <li key={c.id}>
+            <li key={c.id} className="relative">
+              {c.formula && <FormulaHint id={c.formula} corner className="top-auto right-2 bottom-2" />}
               {c.matchId ? (
                 <Link href={`/matches/${c.matchId}`} className="block h-full rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                   {body}

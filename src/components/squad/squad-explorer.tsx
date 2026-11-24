@@ -18,6 +18,7 @@ import {
   YAxis,
 } from "recharts";
 import { seatColor } from "@/components/player/seat-scope";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import { leaders } from "@/lib/domain/player-stats";
 import {
   RADAR_KEYS,
@@ -97,8 +98,13 @@ export function SquadExplorer({ players, summaries, matches, comparison }: Props
   );
 }
 
-function Sub({ children }: { children: ReactNode }) {
-  return <p className="mb-3 text-xs text-muted-foreground">{children}</p>;
+function Sub({ children, formula }: { children: ReactNode; formula?: FormulaId }) {
+  return (
+    <p className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span>{children}</span>
+      {formula && <FormulaHint id={formula} />}
+    </p>
+  );
 }
 
 function RadarView({ players, summaries }: { players: ExplorerPlayer[]; summaries: SquadPlayerSummary[] }) {
@@ -111,7 +117,7 @@ function RadarView({ players, summaries }: { players: ExplorerPlayer[]; summarie
   );
   return (
     <>
-      <Sub>{t("squad.radar.sub")}</Sub>
+      <Sub formula="radar">{t("squad.radar.sub")}</Sub>
       <SquadRadar players={players} values={values} />
     </>
   );
@@ -219,13 +225,14 @@ function CompareView({ players, summaries }: { players: ExplorerPlayer[]; summar
           </button>
         ))}
       </div>
-      <Sub>{t("squad.compare.sub")}</Sub>
+      <Sub formula="average">{t("squad.compare.sub")}</Sub>
       <div className="grid gap-3 sm:grid-cols-2">
         {keys.map((k) => (
           <MetricBars
             key={k}
             label={t(`sq.${k}` as MessageKey)}
             percent={rowFor(k).format === "pct"}
+            formula="average"
             items={players.map((p) => ({ player: p, value: summaries.find((s) => s.playerId === p.id)?.stats[k].average ?? null }))}
           />
         ))}
@@ -240,7 +247,19 @@ interface BarItem {
 }
 
 /** A bar per player from a shared zero baseline; the leader glows. */
-export function MetricBars({ label, items, percent = false, note }: { label: string; items: BarItem[]; percent?: boolean; note?: ReactNode }) {
+export function MetricBars({
+  label,
+  items,
+  percent = false,
+  note,
+  formula,
+}: {
+  label: string;
+  items: BarItem[];
+  percent?: boolean;
+  note?: ReactNode;
+  formula?: FormulaId;
+}) {
   const values = items.map((i) => i.value);
   const best = leaders(values, false, percent ? 0 : 1);
   const max = percent ? 100 : Math.max(0, ...values.map((v) => v ?? 0));
@@ -248,7 +267,10 @@ export function MetricBars({ label, items, percent = false, note }: { label: str
   return (
     <figure className="rounded-lg border p-3">
       <figcaption className="mb-2 flex items-baseline justify-between gap-2 text-sm font-medium">
-        {label}
+        <span className="inline-flex items-center gap-1.5">
+          {label}
+          {formula && <FormulaHint id={formula} />}
+        </span>
         {note}
       </figcaption>
       <ul className="space-y-1">
@@ -294,7 +316,7 @@ function VsView({ players, comparison }: { players: ExplorerPlayer[]; comparison
   const t = useT();
   return (
     <>
-      <Sub>{t("squad.vs.sub")}</Sub>
+      <Sub formula="modes">{t("squad.vs.sub")}</Sub>
       <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
         {players.map((p) => {
           const c = comparison.find((x) => x.playerId === p.id);
@@ -325,6 +347,11 @@ const METRIC_LABEL: Record<(typeof COMPARE_METRICS)[number], MessageKey> = {
   interceptions: "squad.vs.interceptions",
 };
 
+const MODE_FORMULA: Partial<Record<(typeof COMPARE_METRICS)[number], FormulaId>> = {
+  accuracy: "shotAccuracy",
+  passCompletion: "passCompletion",
+};
+
 /** Per player: a solid bar for 1v1 and a hatched bar for 3v3 on one shared scale. */
 export function ModePairs({ metric, players, comparison }: { metric: (typeof COMPARE_METRICS)[number]; players: ExplorerPlayer[]; comparison: ModeComparison[] }) {
   const t = useT();
@@ -349,7 +376,10 @@ export function ModePairs({ metric, players, comparison }: { metric: (typeof COM
   );
   return (
     <figure className="rounded-lg border p-3">
-      <figcaption className="mb-2 text-sm font-medium">{t(METRIC_LABEL[metric])}</figcaption>
+      <figcaption className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+        {t(METRIC_LABEL[metric])}
+        <FormulaHint id={MODE_FORMULA[metric] ?? "average"} />
+      </figcaption>
       <ul className="space-y-2">
         {players.map((p) => {
           const c = comparison.find((x) => x.playerId === p.id);

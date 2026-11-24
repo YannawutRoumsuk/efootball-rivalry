@@ -4,6 +4,7 @@ import { Goal } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { seatColor } from "@/components/player/seat-scope";
+import { FormulaHint } from "@/components/ui/formula-hint";
 import type { SquadMatch } from "@/lib/domain/squad";
 import { scoringBoard, scoringTimeline, type ScoringRow } from "@/lib/domain/squad-scoring";
 import { pct } from "@/lib/format";
@@ -54,6 +55,7 @@ export function SquadScoring({ players, matches }: Props) {
           <h2 id="squad-scoring-heading" className="flex items-center gap-2 text-sm font-semibold">
             <Goal className="size-4" aria-hidden />
             {t("squad.score.title")}
+            <FormulaHint id="scoring" />
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{t("squad.score.sub")}</p>
         </div>

@@ -1,5 +1,6 @@
 import { Flame } from "lucide-react";
 import { PlayerAvatar } from "@/components/player/player-avatar";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerKey, PlayerPair } from "@/lib/domain/types";
 import type { Translate } from "@/lib/i18n/core";
@@ -25,7 +26,7 @@ function PlayerBlock({ pair, k, summary, me, t }: PlayerBlockProps) {
   const s = summary[k];
   const right = k === "b";
   const stats = [
-    { label: t("hero.winPct"), value: pct(s.winRate) },
+    { label: t("hero.winPct"), value: pct(s.winRate), formula: "winRate" as FormulaId },
     { label: t("hero.goals"), value: s.goalsFor },
     { label: t("hero.gd"), value: signed(s.goalDifference) },
   ];
@@ -44,7 +45,10 @@ function PlayerBlock({ pair, k, summary, me, t }: PlayerBlockProps) {
       <dl className={cn("grid grid-cols-3 gap-x-4 gap-y-1 text-sm sm:gap-x-6", right && "text-right")}>
         {stats.map((stat) => (
           <div key={stat.label}>
-            <dt className="text-xs text-muted-foreground">{stat.label}</dt>
+            <dt className={cn("flex items-center gap-1 text-xs text-muted-foreground", right && "justify-end")}>
+              {stat.label}
+              {"formula" in stat && stat.formula && <FormulaHint id={stat.formula} className="size-3.5" />}
+            </dt>
             <dd className="text-base font-semibold tabular sm:text-lg">{stat.value}</dd>
           </div>
         ))}

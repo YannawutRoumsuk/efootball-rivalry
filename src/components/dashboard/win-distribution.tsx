@@ -1,3 +1,4 @@
+import { FormulaHint } from "@/components/ui/formula-hint";
 import type { RivalrySummary } from "@/lib/domain/stats";
 import type { PlayerPair } from "@/lib/domain/types";
 import { pct } from "@/lib/format";
@@ -14,8 +15,9 @@ export async function WinDistribution({ summary, pair }: { summary: RivalrySumma
 
   return (
     <section aria-labelledby="dist-heading" className="panel p-4 sm:p-6">
-      <h2 id="dist-heading" className="mb-4 text-sm font-semibold">
+      <h2 id="dist-heading" className="mb-4 flex items-center gap-1.5 text-sm font-semibold">
         {t("dist.title")}
+        <FormulaHint id="winShare" />
       </h2>
       <div
         className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted"

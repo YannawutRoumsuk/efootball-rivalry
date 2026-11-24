@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import { seatColor } from "@/components/player/seat-scope";
+import { FormulaHint, type FormulaId } from "@/components/ui/formula-hint";
 import { ModePairs, SquadRadar } from "@/components/squad/squad-explorer";
 import { SquadInsights } from "@/components/squad/squad-insights";
 import { AwardChip, tallyAwards } from "@/components/squad/award-chip";
@@ -21,9 +22,10 @@ export async function generateMetadata() {
   return { title: (await getT())("profile.title") };
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Kpi({ label, value, accent, formula }: { label: string; value: string; accent?: string; formula?: FormulaId }) {
   return (
-    <div className="panel p-3.5">
+    <div className="panel relative p-3.5">
+      {formula && <FormulaHint id={formula} corner className="top-2 right-2" />}
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-xl font-bold tabular" style={accent ? { color: accent } : undefined}>
         {value}
@@ -100,6 +102,7 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
             <p className="flex items-baseline gap-2">
               <span className="text-3xl font-bold tabular">{Math.round(myElo.rating)}</span>
               <span className="text-sm text-muted-foreground">{t("profile.elo")}</span>
+              <FormulaHint id="elo" className="self-center" />
               {rank > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: color, color: "var(--on-seat)" }}>
                   {rank === 1 && <Trophy className="size-3" aria-hidden />}
@@ -133,9 +136,9 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <Kpi label={t("squad.kpi.matches")} value={String(row.games)} />
               <Kpi label={t("profile.record")} value={`${row.wins}–${row.draws}–${row.losses}`} />
-              <Kpi label={t("profile.winRate")} value={pct(row.winRate, 0)} accent={color} />
-              <Kpi label={t("profile.goalsPer")} value={fmt(row.goalsFor.average, 1)} />
-              <Kpi label={t("profile.concededPer")} value={fmt(row.goalsAgainst.average, 1)} />
+              <Kpi label={t("profile.winRate")} value={pct(row.winRate, 0)} accent={color} formula="winRate" />
+              <Kpi label={t("profile.goalsPer")} value={fmt(row.goalsFor.average, 1)} formula="average" />
+              <Kpi label={t("profile.concededPer")} value={fmt(row.goalsAgainst.average, 1)} formula="average" />
               <Kpi label={t("profile.cleanSheets")} value={String(row.cleanSheets)} />
             </dl>
             <h3 className="pt-2 text-sm font-semibold">{t("profile.section.h2h")}</h3>
@@ -166,7 +169,7 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <Kpi label={t("squad.kpi.matches")} value={String(mine.games)} />
               <Kpi label={t("profile.record")} value={`${mine.wins}–${mine.draws}–${mine.losses}`} />
-              <Kpi label={t("profile.avgPoints")} value={fmt(mine.stats.total_points.average, 0)} accent={color} />
+              <Kpi label={t("profile.avgPoints")} value={fmt(mine.stats.total_points.average, 0)} accent={color} formula="avgPoints" />
               <Kpi label={t("profile.mvps")} value={String(mine.mvps)} />
               <Kpi label="G+A" value={`${mine.stats.goals.total}+${mine.stats.assists.total}`} />
             </dl>
@@ -184,7 +187,8 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
               </section>
             )}
             <div className="grid gap-4 lg:grid-cols-2">
-              <section className="panel p-4" style={{ "--seat-0": "var(--muted-foreground)" } as CSSProperties}>
+              <section className="panel relative p-4" style={{ "--seat-0": "var(--muted-foreground)" } as CSSProperties}>
+                <FormulaHint id="radar" corner className="top-3 right-3" />
                 <SquadRadar players={radarPlayers} values={{ [id]: mine.stats ? Object.fromEntries(RADAR_KEYS.map((k) => [k, mine.stats[k].average])) : {}, team: teamAvg }} className="h-72" />
               </section>
               <div className="space-y-4">
@@ -205,7 +209,10 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
             </div>
             <section className="panel space-y-3 p-4 sm:p-5">
               <div>
-                <h3 className="text-sm font-semibold">{t("squad.ins.title")}</h3>
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+                  {t("squad.ins.title")}
+                  <FormulaHint id="lift" />
+                </h3>
                 <p className="text-xs text-muted-foreground">{t("squad.ins.sub")}</p>
               </div>
               <SquadInsights players={squadPlayers} summaries={summaries} onlyId={id} />
@@ -216,7 +223,10 @@ export default async function PlayerProfilePage({ params }: PageProps<"/players/
 
       {(row.games > 0 || mine.games > 0) && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold">{t("squad.tab.vs1v1")}</h2>
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            {t("squad.tab.vs1v1")}
+            <FormulaHint id="modes" />
+          </h2>
           <p className="text-xs text-muted-foreground">{t("squad.vs.sub")}</p>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {COMPARE_METRICS.map((m) => (
